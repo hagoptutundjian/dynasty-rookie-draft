@@ -1,0 +1,1823 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dynasty Rookie Draft Board</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<style>
+/* ==========================================
+   THEME VARIABLES
+   ========================================== */
+:root {
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --tier1: #6366f1; --tier2: #8b5cf6; --tier3: #a855f7;
+  --tier4: #d946ef; --tier5: #ec4899;
+}
+
+[data-theme="dark"] {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface-2: #222636;
+  --text: #e8eaf0;
+  --text-muted: #8b90a0;
+  --border: #2d3348;
+  --primary: #6366f1;
+  --primary-hover: #818cf8;
+  --danger: #ef4444;
+  --shadow: 0 2px 8px rgba(0,0,0,0.3);
+  --qb-bg: #ef44441a; --qb-color: #f87171; --qb-border: #ef444440;
+  --rb-bg: #3b82f61a; --rb-color: #60a5fa; --rb-border: #3b82f640;
+  --wr-bg: #22c55e1a; --wr-color: #4ade80; --wr-border: #22c55e40;
+  --te-bg: #f59e0b1a; --te-color: #fbbf24; --te-border: #f59e0b40;
+  --modal-bg: rgba(0,0,0,0.6);
+  --tag-riser: #22c55e; --tag-faller: #ef4444; --tag-sleeper: #a855f7;
+  --tag-bust: #f97316; --tag-watch: #3b82f6;
+}
+
+[data-theme="light"] {
+  --bg: #f1f5f9;
+  --surface: #ffffff;
+  --surface-2: #f0f2f5;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+  --primary: #6366f1;
+  --primary-hover: #4f46e5;
+  --danger: #ef4444;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --qb-bg: #fef2f2; --qb-color: #dc2626; --qb-border: #fca5a5;
+  --rb-bg: #eff6ff; --rb-color: #2563eb; --rb-border: #93c5fd;
+  --wr-bg: #f0fdf4; --wr-color: #16a34a; --wr-border: #86efac;
+  --te-bg: #fffbeb; --te-color: #d97706; --te-border: #fcd34d;
+  --modal-bg: rgba(0,0,0,0.35);
+  --tag-riser: #16a34a; --tag-faller: #dc2626; --tag-sleeper: #7c3aed;
+  --tag-bust: #ea580c; --tag-watch: #2563eb;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+  transition: background 0.3s, color 0.3s;
+}
+
+/* === HEADER === */
+.app-header {
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 30%, #4338ca 60%, #6366f1 100%);
+  padding: 1.25rem 2rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  border-bottom: 3px solid var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.app-header::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5 L55 30 L30 55 L5 30 Z' fill='none' stroke='rgba(255,255,255,0.04)' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: 60px 60px;
+}
+.header-center { position: relative; }
+.app-header h1 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: white;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+.app-header p {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  color: white;
+  font-weight: 500;
+}
+.header-actions {
+  position: absolute;
+  right: 1.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  z-index: 1;
+}
+.theme-toggle, .undo-btn, .redo-btn {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  font-family: var(--font);
+}
+.theme-toggle:hover, .undo-btn:hover, .redo-btn:hover { background: rgba(255,255,255,0.25); }
+.undo-btn:disabled, .redo-btn:disabled { opacity: 0.3; cursor: default; }
+.undo-btn:disabled:hover, .redo-btn:disabled:hover { background: rgba(255,255,255,0.15); }
+
+/* === TAB NAV === */
+.tab-nav {
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 1rem;
+  overflow-x: auto;
+  transition: background 0.3s;
+}
+.tab-btn {
+  padding: 0.75rem 1.25rem;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+  font-family: var(--font);
+  white-space: nowrap;
+}
+.tab-btn:hover { color: var(--text); background: var(--surface-2); }
+.tab-btn.active { color: var(--primary-hover); border-bottom-color: var(--primary); }
+
+/* === MAIN LAYOUT === */
+.main-container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* === TOOLBAR === */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  padding: 0.85rem 1.25rem;
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  transition: background 0.3s, border-color 0.3s;
+}
+.toolbar-group { display: flex; gap: 0.5rem; align-items: center; }
+.toolbar-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-right: 0.15rem;
+}
+.search-input {
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-family: var(--font);
+  width: 180px;
+  outline: none;
+  transition: border-color 0.2s, background 0.3s, color 0.3s;
+}
+.search-input:focus { border-color: var(--primary); }
+.search-input::placeholder { color: var(--text-muted); }
+
+.filter-btn {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font);
+}
+.filter-btn:hover { border-color: var(--text-muted); color: var(--text); }
+.filter-btn.active { border-color: var(--primary); color: var(--primary-hover); background: rgba(99,102,241,0.1); }
+.filter-btn.pos-qb.active { border-color: var(--qb-color); color: var(--qb-color); background: var(--qb-bg); }
+.filter-btn.pos-rb.active { border-color: var(--rb-color); color: var(--rb-color); background: var(--rb-bg); }
+.filter-btn.pos-wr.active { border-color: var(--wr-color); color: var(--wr-color); background: var(--wr-bg); }
+.filter-btn.pos-te.active { border-color: var(--te-color); color: var(--te-color); background: var(--te-bg); }
+
+.toolbar-spacer { flex: 1; }
+
+.btn {
+  padding: 0.45rem 0.9rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+.btn-danger:hover { background: var(--danger); color: white; }
+.btn-outline { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+.btn-outline:hover { border-color: var(--text-muted); color: var(--text); }
+.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.72rem; }
+
+/* === TIER SECTIONS === */
+.tier-section {
+  margin-bottom: 1.25rem;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  transition: background 0.3s, border-color 0.3s;
+}
+.tier-header {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: white;
+}
+.tier-header .tier-count {
+  font-size: 0.65rem;
+  font-weight: 500;
+  opacity: 0.8;
+  background: rgba(255,255,255,0.15);
+  padding: 0.1rem 0.5rem;
+  border-radius: 10px;
+}
+.tier-1 .tier-header { background: var(--tier1); }
+.tier-2 .tier-header { background: var(--tier2); }
+.tier-3 .tier-header { background: var(--tier3); }
+.tier-4 .tier-header { background: var(--tier4); }
+.tier-5 .tier-header { background: var(--tier5); }
+.tier-6 .tier-header { background: #f43f5e; }
+.tier-7 .tier-header { background: #e11d48; }
+.tier-8 .tier-header { background: #be123c; }
+.tier-9 .tier-header { background: #9f1239; }
+.tier-10 .tier-header { background: #881337; }
+
+/* === PLAYER ROW === */
+.player-row {
+  display: grid;
+  grid-template-columns: 26px 44px minmax(120px, 200px) auto 55px 50px 1fr 55px;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+  cursor: grab;
+  user-select: none;
+  gap: 0.5rem;
+}
+.player-row:last-child { border-bottom: none; }
+.player-row:hover { background: var(--surface-2); }
+.player-row.dragging { opacity: 0.4; background: var(--surface-2); }
+.player-row.drag-over { border-top: 2px solid var(--primary); }
+
+.player-rank {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-align: center;
+}
+.player-name-col { min-width: 0; }
+.player-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.draft-col {
+  font-size: 0.78rem;
+  color: var(--primary-hover);
+  font-weight: 600;
+  text-align: center;
+}
+.player-tags { display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 2px; }
+.tag {
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tag-riser { background: rgba(34,197,94,0.15); color: var(--tag-riser); }
+.tag-faller { background: rgba(239,68,68,0.15); color: var(--tag-faller); }
+.tag-sleeper { background: rgba(168,85,247,0.15); color: var(--tag-sleeper); }
+.tag-bust { background: rgba(249,115,22,0.15); color: var(--tag-bust); }
+.tag-watch { background: rgba(59,130,246,0.15); color: var(--tag-watch); }
+
+.pos-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.pos-QB { background: var(--qb-bg); color: var(--qb-color); border: 1px solid var(--qb-border); }
+.pos-RB { background: var(--rb-bg); color: var(--rb-color); border: 1px solid var(--rb-border); }
+.pos-WR { background: var(--wr-bg); color: var(--wr-color); border: 1px solid var(--wr-border); }
+.pos-TE { background: var(--te-bg); color: var(--te-color); border: 1px solid var(--te-border); }
+
+.player-note-input {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-family: var(--font);
+  padding: 0.25rem 0.4rem;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+.player-note-input::placeholder { color: var(--text-muted); opacity: 0.4; }
+.player-note-input:hover { border-color: var(--border); background: var(--surface-2); }
+.player-note-input:focus { border-color: var(--primary); background: var(--surface-2); color: var(--text); }
+.player-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+.player-actions .btn-icon {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.35rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  transition: all 0.15s;
+  font-family: var(--font);
+}
+.player-actions .btn-icon:hover { background: var(--surface-2); color: var(--text); }
+.player-actions .btn-icon.delete:hover { color: var(--danger); }
+
+/* === DRAFTED STATE === */
+.player-row.drafted { opacity: 0.45; }
+.player-row.drafted .player-name { text-decoration: line-through; }
+.drafted-toggle {
+  width: 18px; height: 18px;
+  border-radius: 4px;
+  border: 2px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: transparent;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  padding: 0;
+}
+.drafted-toggle:hover { border-color: var(--primary); }
+.drafted-toggle.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+.pos-player-row.drafted { opacity: 0.45; }
+.pos-player-row.drafted div:nth-child(3) { text-decoration: line-through; }
+.pos-drafted-toggle {
+  width: 14px; height: 14px;
+  border-radius: 3px;
+  border: 2px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.55rem;
+  color: transparent;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  padding: 0;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.pos-drafted-toggle:hover { border-color: var(--primary); }
+.pos-drafted-toggle.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+/* === MODAL === */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--modal-bg);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  justify-content: center;
+  align-items: center;
+}
+.modal-overlay.active { display: flex; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  width: 90%;
+  max-width: 480px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal h3 {
+  font-size: 1.05rem;
+  margin-bottom: 1rem;
+  font-weight: 700;
+}
+.form-group { margin-bottom: 0.85rem; }
+.form-group label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.88rem;
+  font-family: var(--font);
+  outline: none;
+  transition: border-color 0.2s;
+}
+.form-group textarea { resize: vertical; min-height: 60px; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--primary); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1.1rem;
+}
+
+/* Tag checkboxes */
+.tag-checkboxes { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.tag-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  user-select: none;
+}
+.tag-checkbox input { cursor: pointer; }
+
+/* === CONSENSUS VIEW === */
+.consensus-grid {
+  display: grid;
+  grid-template-columns: 44px 1fr 60px 70px 80px 80px;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  gap: 0.5rem;
+}
+.consensus-grid:last-child { border-bottom: none; }
+.consensus-grid:hover { background: var(--surface-2); }
+.consensus-header {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: 0.45rem 1rem;
+  display: grid;
+  grid-template-columns: 44px 1fr 60px 70px 80px 80px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  gap: 0.5rem;
+}
+.diff-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.diff-up { color: #4ade80; background: rgba(34,197,94,0.1); }
+.diff-down { color: #f87171; background: rgba(239,68,68,0.1); }
+.diff-even { color: var(--text-muted); }
+
+/* === EXPERT MANAGEMENT === */
+.expert-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 1rem;
+  overflow: hidden;
+  transition: background 0.3s, border-color 0.3s;
+}
+.expert-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1.25rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.expert-card-header h4 { font-size: 0.88rem; font-weight: 600; }
+.expert-card-body { padding: 0.6rem 1rem; }
+.expert-rank-row {
+  display: grid;
+  grid-template-columns: 1fr 70px;
+  align-items: center;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid rgba(45,51,72,0.3);
+  gap: 0.5rem;
+}
+.expert-rank-row:last-child { border-bottom: none; }
+.expert-rank-input {
+  width: 100%;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.82rem;
+  text-align: center;
+  font-family: var(--font);
+  outline: none;
+}
+.expert-rank-input:focus { border-color: var(--primary); }
+.expert-card-body.scrollable { max-height: 400px; overflow-y: auto; }
+
+/* === POSITIONAL RANKINGS === */
+.pos-columns {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+@media (max-width: 900px) { .pos-columns { grid-template-columns: repeat(2, 1fr); } }
+.pos-column {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: background 0.3s, border-color 0.3s;
+}
+.pos-column-header {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pos-column-header .count {
+  font-size: 0.68rem;
+  font-weight: 500;
+  opacity: 0.8;
+  background: rgba(255,255,255,0.15);
+  padding: 0.05rem 0.4rem;
+  border-radius: 8px;
+}
+.pos-column.col-QB .pos-column-header { background: var(--qb-color); }
+.pos-column.col-RB .pos-column-header { background: var(--rb-color); }
+.pos-column.col-WR .pos-column-header { background: var(--wr-color); }
+.pos-column.col-TE .pos-column-header { background: var(--te-color); }
+.pos-player-row {
+  display: grid;
+  grid-template-columns: 32px 32px 1fr;
+  align-items: center;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+  gap: 0.4rem;
+}
+.pos-player-row:last-child { border-bottom: none; }
+.pos-player-row:hover { background: var(--surface-2); }
+.pos-rank { font-weight: 800; color: var(--text-muted); text-align: center; font-size: 0.78rem; }
+.overall-rank { font-size: 0.68rem; color: var(--text-muted); text-align: center; }
+
+/* === MISC === */
+.empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
+.empty-state p { font-size: 0.9rem; margin-bottom: 0.75rem; }
+.no-results { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.88rem; }
+
+/* === MANAGE BOARD TAB === */
+.manage-section { max-width: 640px; margin: 0 auto; padding: 1rem 0; }
+.manage-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+}
+.manage-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.35rem; }
+.manage-card textarea {
+  width: 100%;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+  font-family: var(--font);
+  font-size: 0.82rem;
+  resize: vertical;
+  line-height: 1.6;
+}
+.manage-card textarea:focus { outline: none; border-color: var(--primary); }
+
+/* Tag filter buttons */
+.filter-btn.tag-riser.active { border-color: var(--tag-riser); color: var(--tag-riser); background: rgba(34,197,94,0.1); }
+.filter-btn.tag-faller.active { border-color: var(--tag-faller); color: var(--tag-faller); background: rgba(239,68,68,0.1); }
+.filter-btn.tag-sleeper.active { border-color: var(--tag-sleeper); color: var(--tag-sleeper); background: rgba(168,85,247,0.1); }
+.filter-btn.tag-bust.active { border-color: var(--tag-bust); color: var(--tag-bust); background: rgba(249,115,22,0.1); }
+.filter-btn.tag-watch.active { border-color: var(--tag-watch); color: var(--tag-watch); background: rgba(59,130,246,0.1); }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-center">
+    <h1>Dynasty Rookie Draft Board</h1>
+    <p>Rank, tier, and track your dynasty rookie targets</p>
+  </div>
+  <div class="header-actions">
+    <button class="undo-btn" id="btn-undo" title="Undo (Ctrl+Z)" disabled>&#8630;</button>
+    <button class="redo-btn" id="btn-redo" title="Redo (Ctrl+Y)" disabled>&#8631;</button>
+    <button class="theme-toggle" id="btn-theme" title="Toggle light/dark mode">&#9790;</button>
+  </div>
+</header>
+
+<nav class="tab-nav">
+  <button class="tab-btn active" data-tab="rankings">My Rankings</button>
+  <button class="tab-btn" data-tab="positional">By Position</button>
+  <button class="tab-btn" data-tab="consensus">Consensus</button>
+  <button class="tab-btn" data-tab="experts">Manage Experts</button>
+  <button class="tab-btn" data-tab="manage">Manage Board</button>
+</nav>
+
+<div class="main-container">
+
+  <!-- ===== MY RANKINGS TAB ===== -->
+  <div id="tab-rankings" class="tab-content active">
+    <div class="toolbar">
+      <div class="toolbar-group">
+        <span class="toolbar-label">Search</span>
+        <input type="text" id="search-input" class="search-input" placeholder="Player name...">
+      </div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">Pos</span>
+        <button class="filter-btn pos-qb" data-pos="QB">QB</button>
+        <button class="filter-btn pos-rb" data-pos="RB">RB</button>
+        <button class="filter-btn pos-wr" data-pos="WR">WR</button>
+        <button class="filter-btn pos-te" data-pos="TE">TE</button>
+      </div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">Tier</span>
+        <select id="tier-filter" class="search-input" style="width:90px">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">Tag</span>
+        <select id="tag-filter" class="search-input" style="width:100px">
+          <option value="">All</option>
+          <option value="riser">Riser</option>
+          <option value="faller">Faller</option>
+          <option value="sleeper">Sleeper</option>
+          <option value="bust">Bust Risk</option>
+          <option value="watch">Watch</option>
+        </select>
+      </div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">Round</span>
+        <select id="round-filter" class="search-input" style="width:90px">
+          <option value="">All</option>
+          <option value="1">Round 1</option>
+          <option value="2">Round 2</option>
+          <option value="3">Round 3</option>
+          <option value="4">Round 4</option>
+          <option value="5">Round 5</option>
+          <option value="6">Round 6</option>
+          <option value="7">Round 7</option>
+          <option value="undrafted">Undrafted</option>
+        </select>
+      </div>
+      <div class="toolbar-spacer"></div>
+      <button class="btn btn-primary" id="btn-add-player">+ Add Player</button>
+      <button class="btn btn-outline" id="btn-export">Export Excel</button>
+      <button class="btn btn-outline" id="btn-undraft-all" onclick="undraftAll()" title="Clear all drafted marks">Undraft All</button>
+    </div>
+    <div id="rankings-list"></div>
+  </div>
+
+  <!-- ===== POSITIONAL RANKINGS TAB ===== -->
+  <div id="tab-positional" class="tab-content">
+    <div id="positional-view"></div>
+  </div>
+
+  <!-- ===== CONSENSUS TAB ===== -->
+  <div id="tab-consensus" class="tab-content">
+    <div class="toolbar">
+      <div class="toolbar-group">
+        <span class="toolbar-label">Search</span>
+        <input type="text" id="consensus-search" class="search-input" placeholder="Player name...">
+      </div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">Pos</span>
+        <button class="filter-btn pos-qb consensus-pos-filter" data-pos="QB">QB</button>
+        <button class="filter-btn pos-rb consensus-pos-filter" data-pos="RB">RB</button>
+        <button class="filter-btn pos-wr consensus-pos-filter" data-pos="WR">WR</button>
+        <button class="filter-btn pos-te consensus-pos-filter" data-pos="TE">TE</button>
+      </div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">Sort</span>
+        <select id="consensus-sort" class="search-input" style="width:130px">
+          <option value="myrank">My Rank</option>
+          <option value="consensus">Consensus Rank</option>
+          <option value="diff">Biggest Difference</option>
+        </select>
+      </div>
+    </div>
+    <div id="consensus-list"></div>
+  </div>
+
+  <!-- ===== EXPERTS TAB ===== -->
+  <div id="tab-experts" class="tab-content">
+    <div class="toolbar">
+      <button class="btn btn-primary" id="btn-add-expert">+ Add Expert</button>
+      <div class="toolbar-spacer"></div>
+      <span id="expert-count" style="color:var(--text-muted);font-size:0.82rem"></span>
+    </div>
+    <div id="experts-list"></div>
+  </div>
+
+  <!-- ===== MANAGE BOARD TAB ===== -->
+  <div id="tab-manage" class="tab-content">
+    <div class="manage-section">
+      <div class="manage-card">
+        <h3>Bulk Add Players</h3>
+        <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:0.75rem">Paste a list of players, one per line. Format: <code style="background:var(--surface-2);padding:0.1rem 0.35rem;border-radius:4px;font-size:0.78rem">Name, Position</code> (e.g., "Shedeur Sanders, QB"). Position defaults to WR if omitted. All players will be added to the tier you select.</p>
+        <div class="form-row" style="margin-bottom:0.75rem">
+          <div class="form-group" style="margin-bottom:0">
+            <label>Default Tier</label>
+            <input type="number" id="bulk-tier" min="1" max="20" value="5" style="width:80px">
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>Default Position</label>
+            <select id="bulk-default-pos" style="width:80px">
+              <option value="WR">WR</option>
+              <option value="QB">QB</option>
+              <option value="RB">RB</option>
+              <option value="TE">TE</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:0.75rem">
+          <label>Player List</label>
+          <textarea id="bulk-input" rows="10" placeholder="Shedeur Sanders, QB&#10;Travis Hunter, WR&#10;Cam Ward, QB&#10;Ashton Jeanty, RB&#10;Tetairoa McMillan, WR"></textarea>
+        </div>
+        <button class="btn btn-primary" id="btn-bulk-add">Add Players</button>
+        <span id="bulk-result" style="margin-left:0.75rem;font-size:0.82rem;color:var(--text-muted)"></span>
+      </div>
+
+      <div class="manage-card" style="margin-top:1.25rem">
+        <h3>Clear All Players</h3>
+        <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:0.75rem">Remove every player from the board. Use this to start fresh for a new draft year. This cannot be undone.</p>
+        <button class="btn btn-danger" id="btn-clear-all">Clear All Players</button>
+      </div>
+
+      <div class="manage-card" style="margin-top:1.25rem">
+        <h3>Reset Expert Rankings</h3>
+        <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:0.75rem">Remove all expert rankers and their data. Useful when starting a new year.</p>
+        <button class="btn btn-danger" id="btn-clear-experts">Clear All Experts</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Add/Edit Player Modal -->
+<div class="modal-overlay" id="player-modal">
+  <div class="modal">
+    <h3 id="modal-title">Add Player</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Player Name</label>
+        <input type="text" id="modal-name" placeholder="e.g., Shedeur Sanders">
+      </div>
+      <div class="form-group">
+        <label>Position</label>
+        <select id="modal-pos">
+          <option value="QB">QB</option>
+          <option value="RB">RB</option>
+          <option value="WR">WR</option>
+          <option value="TE">TE</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Tier</label>
+        <input type="number" id="modal-tier" min="1" max="20" value="5">
+      </div>
+      <div class="form-group">
+        <label>Rank (position in list)</label>
+        <input type="number" id="modal-rank" min="1" value="1">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Draft Pick #</label>
+        <input type="number" id="modal-draft-pick" min="1" max="256" placeholder="e.g., 12">
+      </div>
+      <div class="form-group">
+        <label>NFL Team</label>
+        <input type="text" id="modal-draft-team" placeholder="e.g., NYG">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Tags</label>
+      <div class="tag-checkboxes">
+        <label class="tag-checkbox"><input type="checkbox" id="tag-riser" value="riser"> Riser</label>
+        <label class="tag-checkbox"><input type="checkbox" id="tag-faller" value="faller"> Faller</label>
+        <label class="tag-checkbox"><input type="checkbox" id="tag-sleeper" value="sleeper"> Sleeper</label>
+        <label class="tag-checkbox"><input type="checkbox" id="tag-bust" value="bust"> Bust Risk</label>
+        <label class="tag-checkbox"><input type="checkbox" id="tag-watch" value="watch"> Watch</label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="modal-notes" placeholder="Combine notes, landing spot thoughts, injury concerns..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="modal-cancel">Cancel</button>
+      <button class="btn btn-primary" id="modal-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Expert Modal -->
+<div class="modal-overlay" id="expert-modal">
+  <div class="modal">
+    <h3>Add Expert Ranker</h3>
+    <div class="form-group">
+      <label>Expert Name</label>
+      <input type="text" id="expert-name-input" placeholder="e.g., JJ Zachariason">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="expert-cancel">Cancel</button>
+      <button class="btn btn-primary" id="expert-save">Add Expert</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==========================================
+// DEFAULT DATA (from Excel)
+// ==========================================
+const DEFAULT_PLAYERS = [
+  {id:1,rank:1,tier:1,name:"Fernando Mendoza",pos:"QB"},
+  {id:2,rank:2,tier:2,name:"Jeremiyah Love",pos:"RB"},
+  {id:3,rank:3,tier:2,name:"Carnell Tate",pos:"WR"},
+  {id:4,rank:4,tier:2,name:"Jordyn Tyson",pos:"WR"},
+  {id:5,rank:5,tier:2,name:"Makai Lemon",pos:"WR"},
+  {id:6,rank:6,tier:3,name:"Denzel Boston",pos:"WR"},
+  {id:7,rank:7,tier:3,name:"K.C. Concepcion",pos:"WR"},
+  {id:8,rank:8,tier:4,name:"Jonah Coleman",pos:"RB"},
+  {id:9,rank:9,tier:4,name:"Jadarian Price",pos:"RB"},
+  {id:10,rank:10,tier:4,name:"Kenyon Sadiq",pos:"TE"},
+  {id:11,rank:11,tier:4,name:"Emmett Johnson",pos:"RB"},
+  {id:12,rank:12,tier:5,name:"Kaytron Allen",pos:"RB"},
+  {id:13,rank:13,tier:5,name:"Chris Bell",pos:"WR"},
+  {id:14,rank:14,tier:5,name:"Omar Cooper Jr.",pos:"WR"},
+  {id:15,rank:15,tier:5,name:"Elijah Sarratt",pos:"WR"},
+  {id:16,rank:16,tier:5,name:"Eli Stowers",pos:"TE"},
+  {id:17,rank:17,tier:5,name:"Nicholas Singleton",pos:"RB"},
+  {id:18,rank:18,tier:5,name:"Germie Bernard",pos:"WR"},
+  {id:19,rank:19,tier:5,name:"Zachariah Branch",pos:"WR"},
+  {id:20,rank:20,tier:5,name:"Chris Brazzell II",pos:"WR"},
+  {id:21,rank:21,tier:5,name:"Trinidad Chambliss",pos:"QB"},
+  {id:22,rank:22,tier:5,name:"Ty Simpson",pos:"QB"},
+  {id:23,rank:23,tier:5,name:"Demond Claiborne",pos:"RB"},
+  {id:24,rank:24,tier:5,name:"Mike Washington Jr.",pos:"RB"},
+  {id:25,rank:25,tier:5,name:"Antonio Williams",pos:"WR"},
+  {id:26,rank:26,tier:5,name:"Ja'Kobi Lane",pos:"WR"},
+  {id:27,rank:27,tier:5,name:"Malachi Fields",pos:"WR"},
+  {id:28,rank:28,tier:5,name:"Garrett Nussmeier",pos:"QB"},
+  {id:29,rank:29,tier:5,name:"Roman Hemby",pos:"RB"},
+  {id:30,rank:30,tier:5,name:"Skyler Bell",pos:"WR"},
+  {id:31,rank:31,tier:5,name:"Adam Randall",pos:"RB"},
+  {id:32,rank:32,tier:5,name:"Michael Trigg",pos:"TE"},
+  {id:33,rank:33,tier:5,name:"Le'Veon Moss",pos:"RB"},
+  {id:34,rank:34,tier:5,name:"Max Klare",pos:"TE"},
+  {id:35,rank:35,tier:5,name:"Carson Beck",pos:"QB"},
+  {id:36,rank:36,tier:5,name:"Deion Burks",pos:"WR"},
+  {id:37,rank:37,tier:5,name:"Barion Brown",pos:"WR"},
+  {id:38,rank:38,tier:5,name:"Jamarion Miller",pos:"RB"},
+  {id:39,rank:39,tier:5,name:"Drew Allar",pos:"QB"},
+  {id:40,rank:40,tier:5,name:"J'Mari Taylor",pos:"RB"},
+  {id:41,rank:41,tier:5,name:"Justin Joly",pos:"TE"},
+  {id:42,rank:42,tier:5,name:"Cade Klubnik",pos:"QB"},
+  {id:43,rank:43,tier:5,name:"Eric McAlister",pos:"WR"},
+  {id:44,rank:44,tier:5,name:"Seth McGowan",pos:"RB"},
+  {id:45,rank:45,tier:5,name:"Jaydn Ott",pos:"RB"},
+  {id:46,rank:46,tier:5,name:"Joe Royer",pos:"TE"},
+  {id:47,rank:47,tier:5,name:"TJ Harden",pos:"RB"},
+  {id:48,rank:48,tier:5,name:"Kevin Coleman Jr.",pos:"WR"},
+  {id:49,rank:49,tier:5,name:"Jack Endries",pos:"TE"},
+  {id:50,rank:50,tier:5,name:"Brenen Thompson",pos:"WR"},
+  {id:51,rank:51,tier:5,name:"Aaron Anderson",pos:"WR"},
+  {id:52,rank:52,tier:5,name:"Terion Stewart",pos:"RB"},
+  {id:53,rank:53,tier:5,name:"Ted Hurst",pos:"WR"},
+  {id:54,rank:54,tier:5,name:"Bryce Lance",pos:"WR"},
+  {id:55,rank:55,tier:5,name:"C.J. Daniels",pos:"WR"},
+  {id:56,rank:56,tier:5,name:"Eric Rivers",pos:"WR"},
+  {id:57,rank:57,tier:5,name:"Tanner Koziol",pos:"TE"},
+  {id:58,rank:58,tier:5,name:"Dane Key",pos:"WR"},
+  {id:59,rank:59,tier:5,name:"Oscar Delp",pos:"TE"},
+  {id:60,rank:60,tier:5,name:"Robert Henry Jr.",pos:"RB"},
+  {id:61,rank:61,tier:5,name:"RJ Maryland",pos:"TE"},
+  {id:62,rank:62,tier:5,name:"Diego Pavia",pos:"QB"},
+  {id:63,rank:63,tier:5,name:"De'Zhaun Stribling",pos:"WR"},
+  {id:64,rank:64,tier:5,name:"Jack Velling",pos:"TE"},
+  {id:65,rank:65,tier:5,name:"Cole Payton",pos:"QB"},
+  {id:66,rank:66,tier:5,name:"Jamal Haynes",pos:"RB"},
+  {id:67,rank:67,tier:5,name:"Rueben Owens",pos:"RB"},
+  {id:68,rank:68,tier:5,name:"J. Michael Sturdivant",pos:"WR"},
+  {id:69,rank:69,tier:5,name:"Miller Moss",pos:"QB"},
+  {id:70,rank:70,tier:5,name:"L.J. Martin",pos:"RB"},
+  {id:71,rank:71,tier:5,name:"Nyck Harbor",pos:"WR"},
+  {id:72,rank:72,tier:5,name:"Desmond Reid",pos:"RB"},
+  {id:73,rank:73,tier:5,name:"Dean Connors",pos:"RB"},
+  {id:74,rank:74,tier:5,name:"Conner Weigman",pos:"QB"},
+  {id:75,rank:75,tier:5,name:"Noah Whittington",pos:"RB"},
+  {id:76,rank:76,tier:5,name:"Malachi Nelson",pos:"QB"},
+  {id:77,rank:77,tier:5,name:"Chase Roberts",pos:"WR"},
+  {id:78,rank:78,tier:5,name:"Sawyer Robertson",pos:"QB"},
+  {id:79,rank:79,tier:5,name:"Jam Miller",pos:"RB"},
+  {id:80,rank:80,tier:5,name:"Dallen Bentley",pos:"TE"},
+  {id:81,rank:81,tier:5,name:"Lewis Bond",pos:"WR"},
+  {id:82,rank:82,tier:5,name:"Eli Raridon",pos:"TE"},
+  {id:83,rank:83,tier:5,name:"Taylen Green",pos:"QB"},
+  {id:84,rank:84,tier:5,name:"Josh Cameron",pos:"WR"},
+  {id:85,rank:85,tier:5,name:"Jalon Daniels",pos:"QB"},
+  {id:86,rank:86,tier:5,name:"Rahsul Faison",pos:"RB"},
+  {id:87,rank:87,tier:5,name:"Marlin Klein",pos:"TE"},
+  {id:88,rank:88,tier:5,name:"Dae'Quan Wright",pos:"TE"},
+  {id:89,rank:89,tier:5,name:"Sam Roush",pos:"TE"},
+  {id:90,rank:90,tier:5,name:"Arch Manning",pos:"QB"},
+  {id:91,rank:91,tier:5,name:"Hank Beatty",pos:"WR"},
+  {id:92,rank:92,tier:5,name:"Noah Thomas",pos:"WR"},
+  {id:93,rank:93,tier:5,name:"Trebor Pena",pos:"WR"},
+  {id:94,rank:94,tier:5,name:"Josh Cuevas",pos:"TE"},
+  {id:95,rank:95,tier:5,name:"Lake McRee",pos:"TE"},
+  {id:96,rank:96,tier:5,name:"Harrison Wallace III",pos:"WR"}
+];
+
+const ALL_TAGS = ['riser','faller','sleeper','bust','watch'];
+const TAG_LABELS = {riser:'Riser',faller:'Faller',sleeper:'Sleeper',bust:'Bust Risk',watch:'Watch'};
+
+// ==========================================
+// STATE
+// ==========================================
+let players = [];
+let experts = [];
+let nextId = 100;
+let editingPlayerId = null;
+
+// Filters
+let activePositions = new Set();
+let activeTier = '';
+let activeTag = '';
+let activeRound = '';
+let searchQuery = '';
+let consensusPositions = new Set();
+let consensusSearch = '';
+let consensusSort = 'myrank';
+
+// Drag state
+let dragSrcId = null;
+
+// Undo/Redo
+const undoStack = [];
+const redoStack = [];
+const MAX_UNDO = 50;
+
+// ==========================================
+// PERSISTENCE
+// ==========================================
+const STORAGE_KEY = 'dynasty_draft_board_2026';
+const EXPERTS_KEY = 'dynasty_draft_experts_2026';
+const THEME_KEY = 'dynasty_draft_theme';
+
+function loadData() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    players = parsed.players || [];
+    nextId = parsed.nextId || 100;
+    // Ensure new fields exist on loaded players
+    players.forEach(p => {
+      if (!p.notes) p.notes = '';
+      if (!p.tags) p.tags = [];
+      if (!p.draftPick) p.draftPick = '';
+      if (!p.draftTeam) p.draftTeam = '';
+      if (p.drafted === undefined) p.drafted = false;
+    });
+  } else {
+    players = JSON.parse(JSON.stringify(DEFAULT_PLAYERS));
+    players.forEach(p => { p.notes = ''; p.tags = []; p.draftPick = ''; p.draftTeam = ''; p.drafted = false; });
+    nextId = 100;
+  }
+  const expertsSaved = localStorage.getItem(EXPERTS_KEY);
+  if (expertsSaved) experts = JSON.parse(expertsSaved);
+
+  // Theme
+  const theme = localStorage.getItem(THEME_KEY) || 'dark';
+  document.documentElement.setAttribute('data-theme', theme);
+  updateThemeIcon();
+}
+
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ players, nextId }));
+  localStorage.setItem(EXPERTS_KEY, JSON.stringify(experts));
+}
+
+// ==========================================
+// UNDO / REDO
+// ==========================================
+function pushUndo() {
+  undoStack.push(JSON.stringify({ players, nextId }));
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  redoStack.length = 0;
+  updateUndoButtons();
+}
+
+function undo() {
+  if (undoStack.length === 0) return;
+  redoStack.push(JSON.stringify({ players, nextId }));
+  const state = JSON.parse(undoStack.pop());
+  players = state.players;
+  nextId = state.nextId;
+  saveData();
+  renderAll();
+  updateUndoButtons();
+}
+
+function redo() {
+  if (redoStack.length === 0) return;
+  undoStack.push(JSON.stringify({ players, nextId }));
+  const state = JSON.parse(redoStack.pop());
+  players = state.players;
+  nextId = state.nextId;
+  saveData();
+  renderAll();
+  updateUndoButtons();
+}
+
+function updateUndoButtons() {
+  document.getElementById('btn-undo').disabled = undoStack.length === 0;
+  document.getElementById('btn-redo').disabled = redoStack.length === 0;
+}
+
+document.getElementById('btn-undo').addEventListener('click', undo);
+document.getElementById('btn-redo').addEventListener('click', redo);
+
+// ==========================================
+// THEME TOGGLE
+// ==========================================
+function updateThemeIcon() {
+  const theme = document.documentElement.getAttribute('data-theme');
+  document.getElementById('btn-theme').innerHTML = theme === 'dark' ? '&#9788;' : '&#9790;';
+}
+
+document.getElementById('btn-theme').addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem(THEME_KEY, next);
+  updateThemeIcon();
+});
+
+// ==========================================
+// TABS
+// ==========================================
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'consensus') renderConsensus();
+    if (btn.dataset.tab === 'experts') renderExperts();
+    if (btn.dataset.tab === 'positional') renderPositional();
+  });
+});
+
+// ==========================================
+// RENDER ALL
+// ==========================================
+function renderAll() {
+  renderRankings();
+  const activeTab = document.querySelector('.tab-btn.active');
+  if (activeTab) {
+    if (activeTab.dataset.tab === 'consensus') renderConsensus();
+    if (activeTab.dataset.tab === 'experts') renderExperts();
+    if (activeTab.dataset.tab === 'positional') renderPositional();
+  }
+}
+
+// ==========================================
+// RENDER RANKINGS
+// ==========================================
+function getFilteredPlayers() {
+  return players.filter(p => {
+    if (activePositions.size > 0 && !activePositions.has(p.pos)) return false;
+    if (activeTier && p.tier !== parseInt(activeTier)) return false;
+    if (activeTag && (!p.tags || !p.tags.includes(activeTag))) return false;
+    if (activeRound) {
+      const pickNum = parseInt(p.draftPick);
+      if (activeRound === 'undrafted') {
+        if (p.draftPick && !isNaN(pickNum)) return false;
+      } else {
+        const roundNum = parseInt(activeRound);
+        if (isNaN(pickNum)) return false;
+        const playerRound = Math.ceil(pickNum / 32);
+        if (playerRound !== roundNum) return false;
+      }
+    }
+    if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    return true;
+  });
+}
+
+function getTiers(playerList) {
+  const tiers = {};
+  playerList.forEach(p => {
+    if (!tiers[p.tier]) tiers[p.tier] = [];
+    tiers[p.tier].push(p);
+  });
+  return Object.keys(tiers).sort((a, b) => a - b).map(t => ({ tier: parseInt(t), players: tiers[t] }));
+}
+
+function renderRankings() {
+  const container = document.getElementById('rankings-list');
+  const filtered = getFilteredPlayers();
+  const tiers = getTiers(filtered);
+
+  const allTiers = [...new Set(players.map(p => p.tier))].sort((a, b) => a - b);
+  const tierFilter = document.getElementById('tier-filter');
+  const currentVal = tierFilter.value;
+  tierFilter.innerHTML = '<option value="">All Tiers</option>';
+  allTiers.forEach(t => {
+    tierFilter.innerHTML += `<option value="${t}"${currentVal == t ? ' selected' : ''}>Tier ${t}</option>`;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="no-results">No players match your filters.</div>';
+    return;
+  }
+
+  container.innerHTML = tiers.map(({ tier, players: tp }) => `
+    <div class="tier-section tier-${tier}" data-tier="${tier}">
+      <div class="tier-header">
+        Tier ${tier}
+        <span class="tier-count">${tp.length} player${tp.length !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="tier-body">
+        ${tp.map(p => {
+          const tagsHtml = p.tags && p.tags.length > 0
+            ? `<div class="player-tags">${p.tags.map(t => `<span class="tag tag-${t}">${TAG_LABELS[t] || t}</span>`).join('')}</div>` : '';
+          return `
+          <div class="player-row${p.drafted ? ' drafted' : ''}" draggable="true" data-id="${p.id}">
+            <button class="drafted-toggle${p.drafted ? ' active' : ''}" onclick="event.stopPropagation();toggleDrafted(${p.id})" title="Mark as drafted">&#10003;</button>
+            <div class="player-rank">${p.rank}</div>
+            <div class="player-name-col">
+              <div class="player-name">${escHtml(p.name)}</div>
+              ${tagsHtml}
+            </div>
+            <div><span class="pos-badge pos-${p.pos}">${p.pos}</span></div>
+            <div class="draft-col">${escHtml(p.draftPick || '')}</div>
+            <div class="draft-col">${escHtml(p.draftTeam || '')}</div>
+            <div><input type="text" class="player-note-input" value="${escAttr(p.notes || '')}" placeholder="Add note..." data-id="${p.id}" onchange="updateNote(${p.id}, this.value)" onclick="event.stopPropagation()" onmousedown="this.closest('.player-row').setAttribute('draggable','false')" onblur="this.closest('.player-row').setAttribute('draggable','true')"></div>
+            <div class="player-actions">
+              <button class="btn-icon" onclick="editPlayer(${p.id})" title="Edit">&#9998;</button>
+              <button class="btn-icon delete" onclick="deletePlayer(${p.id})" title="Delete">&#10005;</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('.player-row').forEach(row => {
+    row.addEventListener('dragstart', onDragStart);
+    row.addEventListener('dragend', onDragEnd);
+    row.addEventListener('dragover', onDragOver);
+    row.addEventListener('dragleave', onDragLeave);
+    row.addEventListener('drop', onDrop);
+  });
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function escAttr(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function updateNote(id, value) {
+  const p = players.find(pl => pl.id === id);
+  if (!p) return;
+  p.notes = value.trim();
+  saveData();
+}
+
+function toggleDrafted(id) {
+  const p = players.find(pl => pl.id === id);
+  if (!p) return;
+  p.drafted = !p.drafted;
+  saveData();
+  renderRankings();
+  const activeTab = document.querySelector('.tab-btn.active');
+  if (activeTab && activeTab.dataset.tab === 'positional') renderPositional();
+}
+
+function undraftAll() {
+  players.forEach(p => p.drafted = false);
+  saveData();
+  renderRankings();
+  const activeTab = document.querySelector('.tab-btn.active');
+  if (activeTab && activeTab.dataset.tab === 'positional') renderPositional();
+}
+
+// ==========================================
+// DRAG & DROP
+// ==========================================
+function onDragStart(e) {
+  pushUndo();
+  dragSrcId = parseInt(this.dataset.id);
+  this.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragSrcId);
+}
+
+function onDragEnd() {
+  this.classList.remove('dragging');
+  document.querySelectorAll('.player-row').forEach(r => r.classList.remove('drag-over'));
+  dragSrcId = null;
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const targetId = parseInt(this.dataset.id);
+  if (targetId !== dragSrcId) {
+    document.querySelectorAll('.player-row').forEach(r => r.classList.remove('drag-over'));
+    this.classList.add('drag-over');
+  }
+}
+
+function onDragLeave() { this.classList.remove('drag-over'); }
+
+function onDrop(e) {
+  e.preventDefault();
+  this.classList.remove('drag-over');
+  const targetId = parseInt(this.dataset.id);
+  if (targetId === dragSrcId) return;
+
+  const srcIdx = players.findIndex(p => p.id === dragSrcId);
+  const tgtIdx = players.findIndex(p => p.id === targetId);
+  if (srcIdx === -1 || tgtIdx === -1) return;
+
+  const [moved] = players.splice(srcIdx, 1);
+  const newTgtIdx = players.findIndex(p => p.id === targetId);
+  moved.tier = players[newTgtIdx].tier;
+  players.splice(newTgtIdx, 0, moved);
+
+  recalcRanks();
+  saveData();
+  renderRankings();
+}
+
+function recalcRanks() {
+  players.forEach((p, i) => p.rank = i + 1);
+}
+
+// ==========================================
+// FILTERS
+// ==========================================
+document.querySelectorAll('#tab-rankings .filter-btn[data-pos]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const pos = btn.dataset.pos;
+    if (activePositions.has(pos)) { activePositions.delete(pos); btn.classList.remove('active'); }
+    else { activePositions.add(pos); btn.classList.add('active'); }
+    renderRankings();
+  });
+});
+
+document.getElementById('tier-filter').addEventListener('change', (e) => { activeTier = e.target.value; renderRankings(); });
+document.getElementById('tag-filter').addEventListener('change', (e) => { activeTag = e.target.value; renderRankings(); });
+document.getElementById('round-filter').addEventListener('change', (e) => { activeRound = e.target.value; renderRankings(); });
+document.getElementById('search-input').addEventListener('input', (e) => { searchQuery = e.target.value; renderRankings(); });
+
+// ==========================================
+// ADD / EDIT / DELETE
+// ==========================================
+document.getElementById('btn-add-player').addEventListener('click', () => {
+  editingPlayerId = null;
+  document.getElementById('modal-title').textContent = 'Add Player';
+  document.getElementById('modal-name').value = '';
+  document.getElementById('modal-pos').value = 'QB';
+  document.getElementById('modal-tier').value = 5;
+  document.getElementById('modal-rank').value = players.length + 1;
+  document.getElementById('modal-draft-pick').value = '';
+  document.getElementById('modal-draft-team').value = '';
+  document.getElementById('modal-notes').value = '';
+  ALL_TAGS.forEach(t => document.getElementById('tag-' + t).checked = false);
+  document.getElementById('player-modal').classList.add('active');
+  document.getElementById('modal-name').focus();
+});
+
+function editPlayer(id) {
+  const p = players.find(pl => pl.id === id);
+  if (!p) return;
+  editingPlayerId = id;
+  document.getElementById('modal-title').textContent = 'Edit Player';
+  document.getElementById('modal-name').value = p.name;
+  document.getElementById('modal-pos').value = p.pos;
+  document.getElementById('modal-tier').value = p.tier;
+  document.getElementById('modal-rank').value = p.rank;
+  document.getElementById('modal-draft-pick').value = p.draftPick || '';
+  document.getElementById('modal-draft-team').value = p.draftTeam || '';
+  document.getElementById('modal-notes').value = p.notes || '';
+  ALL_TAGS.forEach(t => document.getElementById('tag-' + t).checked = (p.tags || []).includes(t));
+  document.getElementById('player-modal').classList.add('active');
+  document.getElementById('modal-name').focus();
+}
+
+function deletePlayer(id) {
+  const p = players.find(pl => pl.id === id);
+  if (!p) return;
+  if (!confirm(`Remove ${p.name} from your rankings?`)) return;
+  pushUndo();
+  players = players.filter(pl => pl.id !== id);
+  recalcRanks();
+  saveData();
+  renderRankings();
+}
+
+document.getElementById('modal-cancel').addEventListener('click', () => {
+  document.getElementById('player-modal').classList.remove('active');
+});
+
+document.getElementById('modal-save').addEventListener('click', () => {
+  const name = document.getElementById('modal-name').value.trim();
+  const pos = document.getElementById('modal-pos').value;
+  const tier = parseInt(document.getElementById('modal-tier').value) || 5;
+  const rank = parseInt(document.getElementById('modal-rank').value) || players.length + 1;
+  const draftPick = document.getElementById('modal-draft-pick').value.trim();
+  const draftTeam = document.getElementById('modal-draft-team').value.trim();
+  const notes = document.getElementById('modal-notes').value.trim();
+  const tags = ALL_TAGS.filter(t => document.getElementById('tag-' + t).checked);
+
+  if (!name) { alert('Please enter a player name.'); return; }
+
+  pushUndo();
+
+  if (editingPlayerId !== null) {
+    const p = players.find(pl => pl.id === editingPlayerId);
+    if (p) {
+      const oldTier = p.tier;
+      p.name = name;
+      p.pos = pos;
+      p.tier = tier;
+      p.draftPick = draftPick;
+      p.draftTeam = draftTeam;
+      p.notes = notes;
+      p.tags = tags;
+
+      if (tier !== oldTier) {
+        const currentIdx = players.indexOf(p);
+        players.splice(currentIdx, 1);
+        let insertIdx = players.length;
+        for (let i = players.length - 1; i >= 0; i--) {
+          if (players[i].tier === tier) { insertIdx = i + 1; break; }
+        }
+        if (!players.some(pl => pl.tier === tier)) {
+          insertIdx = players.findIndex(pl => pl.tier > tier);
+          if (insertIdx === -1) insertIdx = players.length;
+        }
+        players.splice(insertIdx, 0, p);
+      } else {
+        const currentIdx = players.indexOf(p);
+        const newIdx = Math.max(0, Math.min(rank - 1, players.length - 1));
+        if (currentIdx !== newIdx) {
+          players.splice(currentIdx, 1);
+          players.splice(newIdx, 0, p);
+        }
+      }
+    }
+  } else {
+    const newPlayer = { id: nextId++, rank: 0, tier, name, pos, draftPick, draftTeam, notes, tags, drafted: false };
+    let insertIdx = players.length;
+    for (let i = players.length - 1; i >= 0; i--) {
+      if (players[i].tier === tier) { insertIdx = i + 1; break; }
+    }
+    if (!players.some(pl => pl.tier === tier)) {
+      insertIdx = players.findIndex(pl => pl.tier > tier);
+      if (insertIdx === -1) insertIdx = players.length;
+    }
+    players.splice(insertIdx, 0, newPlayer);
+  }
+
+  recalcRanks();
+  saveData();
+  renderRankings();
+  document.getElementById('player-modal').classList.remove('active');
+});
+
+// Close modals on overlay click
+document.getElementById('player-modal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove('active');
+});
+document.getElementById('expert-modal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove('active');
+});
+
+// ==========================================
+// EXPORT TO EXCEL
+// ==========================================
+document.getElementById('btn-export').addEventListener('click', () => {
+  const data = players.map(p => ({
+    Rank: p.rank,
+    Tier: p.tier,
+    'Player Name': p.name,
+    Position: p.pos,
+    'Draft Pick': p.draftPick || '',
+    'NFL Team': p.draftTeam || '',
+    Tags: (p.tags || []).map(t => TAG_LABELS[t] || t).join(', '),
+    Notes: p.notes || ''
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [{ wch: 6 },{ wch: 5 },{ wch: 28 },{ wch: 8 },{ wch: 10 },{ wch: 10 },{ wch: 20 },{ wch: 40 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'My Rankings');
+
+  if (experts.length > 0) {
+    const consensusData = players.map(p => {
+      const row = { Rank: p.rank, 'Player Name': p.name, Position: p.pos, Tier: p.tier };
+      experts.forEach(ex => { row[ex.name] = ex.rankings[p.id] || ''; });
+      const avg = getConsensusRank(p.id);
+      row['Consensus'] = avg !== null ? Math.round(avg * 10) / 10 : '';
+      row['Diff'] = avg !== null ? Math.round((avg - p.rank) * 10) / 10 : '';
+      return row;
+    });
+    const ws2 = XLSX.utils.json_to_sheet(consensusData);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Consensus');
+  }
+
+  // Positional sheets
+  ['QB','RB','WR','TE'].forEach(pos => {
+    const posPlayers = players.filter(p => p.pos === pos);
+    const posData = posPlayers.map((p, i) => ({
+      'Pos Rank': i + 1,
+      'Overall Rank': p.rank,
+      'Player Name': p.name,
+      Tier: p.tier,
+      'Draft Pick': p.draftPick || '',
+      'NFL Team': p.draftTeam || '',
+      Notes: p.notes || ''
+    }));
+    const ws3 = XLSX.utils.json_to_sheet(posData);
+    XLSX.utils.book_append_sheet(wb, ws3, pos + ' Rankings');
+  });
+
+  XLSX.writeFile(wb, 'Dynasty_Rookie_Rankings_2026.xlsx');
+});
+
+// ==========================================
+// EXPERT MANAGEMENT
+// ==========================================
+document.getElementById('btn-add-expert').addEventListener('click', () => {
+  document.getElementById('expert-name-input').value = '';
+  document.getElementById('expert-modal').classList.add('active');
+  document.getElementById('expert-name-input').focus();
+});
+
+document.getElementById('expert-cancel').addEventListener('click', () => {
+  document.getElementById('expert-modal').classList.remove('active');
+});
+
+document.getElementById('expert-save').addEventListener('click', () => {
+  const name = document.getElementById('expert-name-input').value.trim();
+  if (!name) { alert('Please enter an expert name.'); return; }
+  experts.push({ id: Date.now(), name, rankings: {}, collapsed: true });
+  saveData();
+  renderExperts();
+  document.getElementById('expert-modal').classList.remove('active');
+});
+
+function renderExperts() {
+  const container = document.getElementById('experts-list');
+  document.getElementById('expert-count').textContent = experts.length > 0 ? `${experts.length} expert${experts.length !== 1 ? 's' : ''}` : '';
+
+  if (experts.length === 0) {
+    container.innerHTML = `<div class="empty-state"><p>No expert rankers added yet.</p><p style="font-size:0.78rem;color:var(--text-muted)">Add fantasy writers and analysts to build a consensus ranking.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = experts.map(ex => `
+    <div class="expert-card" data-expert-id="${ex.id}">
+      <div class="expert-card-header" onclick="toggleExpert(${ex.id})">
+        <h4>${escHtml(ex.name)} <span style="color:var(--text-muted);font-weight:400;font-size:0.78rem">(${Object.keys(ex.rankings).filter(k => ex.rankings[k]).length}/${players.length} ranked)</span></h4>
+        <div style="display:flex;gap:0.5rem;align-items:center">
+          <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteExpert(${ex.id})">Remove</button>
+          <span style="color:var(--text-muted);font-size:0.78rem">${ex.collapsed !== false ? '&#9654;' : '&#9660;'}</span>
+        </div>
+      </div>
+      ${ex.collapsed === false ? `
+        <div class="expert-card-body scrollable">
+          ${players.map(p => `
+            <div class="expert-rank-row">
+              <div style="display:flex;align-items:center;gap:0.4rem">
+                <span style="color:var(--text-muted);font-size:0.75rem;width:28px;text-align:right">${p.rank}.</span>
+                <span style="font-size:0.82rem">${escHtml(p.name)}</span>
+                <span class="pos-badge pos-${p.pos}" style="font-size:0.58rem;padding:0.08rem 0.35rem">${p.pos}</span>
+              </div>
+              <input type="number" class="expert-rank-input" min="1" max="300"
+                value="${ex.rankings[p.id] || ''}"
+                placeholder="-"
+                onchange="updateExpertRank(${ex.id}, ${p.id}, this.value)">
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
+function toggleExpert(id) {
+  const ex = experts.find(e => e.id === id);
+  if (ex) { ex.collapsed = ex.collapsed === false ? true : false; saveData(); renderExperts(); }
+}
+
+function deleteExpert(id) {
+  const ex = experts.find(e => e.id === id);
+  if (!ex) return;
+  if (!confirm(`Remove ${ex.name}?`)) return;
+  experts = experts.filter(e => e.id !== id);
+  saveData();
+  renderExperts();
+}
+
+function updateExpertRank(expertId, playerId, value) {
+  const ex = experts.find(e => e.id === expertId);
+  if (!ex) return;
+  const num = parseInt(value);
+  if (value === '' || isNaN(num)) delete ex.rankings[playerId];
+  else ex.rankings[playerId] = num;
+  saveData();
+}
+
+// ==========================================
+// CONSENSUS VIEW
+// ==========================================
+function getConsensusRank(playerId) {
+  if (experts.length === 0) return null;
+  const ranks = experts.map(e => e.rankings[playerId]).filter(r => r != null && r > 0);
+  if (ranks.length === 0) return null;
+  return ranks.reduce((a, b) => a + b, 0) / ranks.length;
+}
+
+document.querySelectorAll('.consensus-pos-filter').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const pos = btn.dataset.pos;
+    if (consensusPositions.has(pos)) { consensusPositions.delete(pos); btn.classList.remove('active'); }
+    else { consensusPositions.add(pos); btn.classList.add('active'); }
+    renderConsensus();
+  });
+});
+
+document.getElementById('consensus-search').addEventListener('input', (e) => { consensusSearch = e.target.value; renderConsensus(); });
+document.getElementById('consensus-sort').addEventListener('change', (e) => { consensusSort = e.target.value; renderConsensus(); });
+
+function renderConsensus() {
+  const container = document.getElementById('consensus-list');
+  if (experts.length === 0) {
+    container.innerHTML = `<div class="empty-state"><p>No expert rankings to compare.</p><p style="font-size:0.78rem;color:var(--text-muted)">Add experts in the "Manage Experts" tab first.</p></div>`;
+    return;
+  }
+
+  let filtered = players.filter(p => {
+    if (consensusPositions.size > 0 && !consensusPositions.has(p.pos)) return false;
+    if (consensusSearch && !p.name.toLowerCase().includes(consensusSearch.toLowerCase())) return false;
+    return true;
+  });
+
+  const consensusMap = {};
+  filtered.forEach(p => { consensusMap[p.id] = getConsensusRank(p.id); });
+
+  if (consensusSort === 'consensus') {
+    filtered.sort((a, b) => {
+      const ca = consensusMap[a.id], cb = consensusMap[b.id];
+      if (ca === null && cb === null) return a.rank - b.rank;
+      if (ca === null) return 1;
+      if (cb === null) return -1;
+      return ca - cb;
+    });
+  } else if (consensusSort === 'diff') {
+    filtered.sort((a, b) => {
+      const da = consensusMap[a.id] !== null ? Math.abs(consensusMap[a.id] - a.rank) : -1;
+      const db = consensusMap[b.id] !== null ? Math.abs(consensusMap[b.id] - b.rank) : -1;
+      return db - da;
+    });
+  }
+
+  let html = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+    <div class="consensus-header"><div>Rank</div><div>Player</div><div>Pos</div><div>My Rank</div><div>Consensus</div><div>Diff</div></div>`;
+
+  filtered.forEach(p => {
+    const consensus = consensusMap[p.id];
+    const diff = consensus !== null ? consensus - p.rank : null;
+    let diffHtml = '<span class="diff-even">-</span>';
+    if (diff !== null) {
+      const r = Math.round(diff * 10) / 10;
+      if (r > 0) diffHtml = `<span class="diff-badge diff-up">&#9650; +${r}</span>`;
+      else if (r < 0) diffHtml = `<span class="diff-badge diff-down">&#9660; ${r}</span>`;
+      else diffHtml = `<span class="diff-badge diff-even">=</span>`;
+    }
+    html += `<div class="consensus-grid">
+      <div class="player-rank">${p.rank}</div>
+      <div class="player-name">${escHtml(p.name)}</div>
+      <div><span class="pos-badge pos-${p.pos}">${p.pos}</span></div>
+      <div style="text-align:center;color:var(--text-muted)">${p.rank}</div>
+      <div style="text-align:center;font-weight:600">${consensus !== null ? (Math.round(consensus * 10) / 10) : '-'}</div>
+      <div style="text-align:center">${diffHtml}</div>
+    </div>`;
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// ==========================================
+// POSITIONAL RANKINGS VIEW
+// ==========================================
+function renderPositional() {
+  const container = document.getElementById('positional-view');
+  const positions = ['QB','RB','WR','TE'];
+
+  container.innerHTML = `<div class="pos-columns">${positions.map(pos => {
+    const posPlayers = players.filter(p => p.pos === pos);
+    return `<div class="pos-column col-${pos}">
+      <div class="pos-column-header">${pos} <span class="count">${posPlayers.length}</span></div>
+      <div>
+        ${posPlayers.length === 0 ? '<div class="no-results">None</div>' : posPlayers.map((p, i) => {
+          const draftStr = p.draftPick || p.draftTeam
+            ? ` <span style="font-size:0.65rem;color:var(--primary-hover)">${escHtml(p.draftPick)}${p.draftPick && p.draftTeam ? ' ' : ''}${escHtml(p.draftTeam)}</span>` : '';
+          return `<div class="pos-player-row${p.drafted ? ' drafted' : ''}">
+            <div class="pos-rank">${i + 1}</div>
+            <div class="overall-rank">#${p.rank}</div>
+            <div style="font-size:0.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><button class="pos-drafted-toggle${p.drafted ? ' active' : ''}" onclick="toggleDrafted(${p.id})" title="Mark as drafted">&#10003;</button>${escHtml(p.name)}${draftStr}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ==========================================
+// KEYBOARD SHORTCUTS
+// ==========================================
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+  }
+  // Ctrl+Z / Cmd+Z = Undo
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    undo();
+  }
+  // Ctrl+Y / Cmd+Shift+Z = Redo
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+    e.preventDefault();
+    redo();
+  }
+});
+
+// Enter key in modals
+document.getElementById('modal-name').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('modal-save').click();
+});
+document.getElementById('expert-name-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('expert-save').click();
+});
+
+// ==========================================
+// MANAGE BOARD
+// ==========================================
+document.getElementById('btn-bulk-add').addEventListener('click', () => {
+  const raw = document.getElementById('bulk-input').value.trim();
+  if (!raw) return;
+  const defaultTier = parseInt(document.getElementById('bulk-tier').value) || 5;
+  const defaultPos = document.getElementById('bulk-default-pos').value;
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  let added = 0;
+  lines.forEach(line => {
+    const parts = line.split(',').map(s => s.trim());
+    const name = parts[0];
+    if (!name) return;
+    let pos = (parts[1] || '').toUpperCase();
+    if (!['QB','RB','WR','TE'].includes(pos)) pos = defaultPos;
+    const tier = defaultTier;
+    // Insert at end of tier
+    let insertIdx = players.length;
+    for (let i = players.length - 1; i >= 0; i--) {
+      if (players[i].tier === tier) { insertIdx = i + 1; break; }
+    }
+    if (!players.some(p => p.tier === tier)) {
+      insertIdx = players.findIndex(p => p.tier > tier);
+      if (insertIdx === -1) insertIdx = players.length;
+    }
+    players.splice(insertIdx, 0, {
+      id: nextId++, rank: 0, tier, name, pos,
+      notes: '', tags: [], draftPick: '', draftTeam: '', drafted: false
+    });
+    added++;
+  });
+  recalcRanks();
+  pushUndo();
+  saveData();
+  renderRankings();
+  document.getElementById('bulk-input').value = '';
+  document.getElementById('bulk-result').textContent = `Added ${added} player${added !== 1 ? 's' : ''}`;
+  setTimeout(() => document.getElementById('bulk-result').textContent = '', 3000);
+});
+
+document.getElementById('btn-clear-all').addEventListener('click', () => {
+  if (!confirm('Remove ALL players from the board? This cannot be undone.')) return;
+  players = [];
+  nextId = 100;
+  pushUndo();
+  saveData();
+  renderRankings();
+  renderPositional();
+});
+
+document.getElementById('btn-clear-experts').addEventListener('click', () => {
+  if (!confirm('Remove ALL expert rankers and their data?')) return;
+  experts = [];
+  localStorage.setItem('dynasty_draft_experts_2026', JSON.stringify(experts));
+  renderExperts();
+});
+
+// ==========================================
+// INIT
+// ==========================================
+loadData();
+renderRankings();
+</script>
+</body>
+</html>
