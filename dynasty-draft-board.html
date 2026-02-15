@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dynasty Rookie Draft Board</title>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <style>
 /* ==========================================
    THEME VARIABLES
@@ -1040,26 +1042,47 @@ const redoStack = [];
 const MAX_UNDO = 50;
 
 // ==========================================
+// FIREBASE SETUP
+// ==========================================
+const firebaseConfig = {
+  apiKey: "AIzaSyCrswZ3KnwIzxoGgxi8vTx2AXVqhdYNZfs",
+  authDomain: "dynasty-rookie-draft.firebaseapp.com",
+  databaseURL: "https://dynasty-rookie-draft-default-rtdb.firebaseio.com",
+  projectId: "dynasty-rookie-draft",
+  storageBucket: "dynasty-rookie-draft.firebasestorage.app",
+  messagingSenderId: "276290303787",
+  appId: "1:276290303787:web:3918025fbde99266d5f76e"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const playersRef = db.ref('players');
+const expertsRef = db.ref('experts');
+let firebaseReady = false;
+let ignoreNextSync = false;
+
+// ==========================================
 // PERSISTENCE
 // ==========================================
 const STORAGE_KEY = 'dynasty_draft_board_2026';
 const EXPERTS_KEY = 'dynasty_draft_experts_2026';
 const THEME_KEY = 'dynasty_draft_theme';
 
+function ensurePlayerFields(p) {
+  if (!p.notes) p.notes = '';
+  if (!p.tags) p.tags = [];
+  if (!p.draftPick) p.draftPick = '';
+  if (!p.draftTeam) p.draftTeam = '';
+  if (p.drafted === undefined) p.drafted = false;
+}
+
 function loadData() {
+  // Load from localStorage first (instant, works offline)
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     const parsed = JSON.parse(saved);
     players = parsed.players || [];
     nextId = parsed.nextId || 100;
-    // Ensure new fields exist on loaded players
-    players.forEach(p => {
-      if (!p.notes) p.notes = '';
-      if (!p.tags) p.tags = [];
-      if (!p.draftPick) p.draftPick = '';
-      if (!p.draftTeam) p.draftTeam = '';
-      if (p.drafted === undefined) p.drafted = false;
-    });
+    players.forEach(ensurePlayerFields);
   } else {
     players = JSON.parse(JSON.stringify(DEFAULT_PLAYERS));
     players.forEach(p => { p.notes = ''; p.tags = []; p.draftPick = ''; p.draftTeam = ''; p.drafted = false; });
@@ -1075,8 +1098,62 @@ function loadData() {
 }
 
 function saveData() {
+  // Save to localStorage (offline backup)
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ players, nextId }));
   localStorage.setItem(EXPERTS_KEY, JSON.stringify(experts));
+
+  // Save to Firebase (cloud sync)
+  if (firebaseReady) {
+    ignoreNextSync = true;
+    playersRef.set({ players, nextId });
+    expertsRef.set(experts);
+  }
+}
+
+// Listen for real-time changes from other devices
+function initFirebaseSync() {
+  playersRef.on('value', (snapshot) => {
+    if (ignoreNextSync) { ignoreNextSync = false; return; }
+    const data = snapshot.val();
+    if (data && data.players) {
+      players = data.players;
+      nextId = data.nextId || 100;
+      players.forEach(ensurePlayerFields);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ players, nextId }));
+      renderAll();
+    }
+  });
+
+  expertsRef.on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+      experts = Array.isArray(data) ? data : Object.values(data);
+      localStorage.setItem(EXPERTS_KEY, JSON.stringify(experts));
+      const activeTab = document.querySelector('.tab-btn.active');
+      if (activeTab && (activeTab.dataset.tab === 'experts' || activeTab.dataset.tab === 'consensus')) {
+        if (activeTab.dataset.tab === 'experts') renderExperts();
+        if (activeTab.dataset.tab === 'consensus') renderConsensus();
+      }
+    }
+  });
+
+  // On first connect, push local data if Firebase is empty
+  playersRef.once('value', (snapshot) => {
+    firebaseReady = true;
+    const data = snapshot.val();
+    if (!data || !data.players) {
+      // Firebase is empty — push local data up
+      playersRef.set({ players, nextId });
+      expertsRef.set(experts);
+    } else {
+      // Firebase has data — use it
+      players = data.players;
+      nextId = data.nextId || 100;
+      players.forEach(ensurePlayerFields);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ players, nextId }));
+      renderAll();
+    }
+  });
 }
 
 // ==========================================
@@ -1809,7 +1886,7 @@ document.getElementById('btn-clear-all').addEventListener('click', () => {
 document.getElementById('btn-clear-experts').addEventListener('click', () => {
   if (!confirm('Remove ALL expert rankers and their data?')) return;
   experts = [];
-  localStorage.setItem('dynasty_draft_experts_2026', JSON.stringify(experts));
+  saveData();
   renderExperts();
 });
 
@@ -1818,6 +1895,7 @@ document.getElementById('btn-clear-experts').addEventListener('click', () => {
 // ==========================================
 loadData();
 renderRankings();
+initFirebaseSync();
 </script>
 </body>
 </html>
