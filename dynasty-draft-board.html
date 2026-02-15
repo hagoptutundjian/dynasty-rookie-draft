@@ -1106,6 +1106,22 @@ function ensurePlayerFields(p) {
   if (p.drafted === undefined) p.drafted = false;
 }
 
+// Firebase converts arrays to objects — this converts them back
+function toArray(data) {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object') return Object.values(data);
+  return [];
+}
+
+function fixExperts(arr) {
+  return arr.map(ex => {
+    if (!ex) return null;
+    if (!ex.rankings || typeof ex.rankings !== 'object') ex.rankings = {};
+    if (ex.tags) ex.tags = toArray(ex.tags);
+    return ex;
+  }).filter(Boolean);
+}
+
 function loadData() {
   // Load from localStorage first (instant, works offline)
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -1147,7 +1163,8 @@ function initFirebaseSync() {
     if (ignoreNextSync) { ignoreNextSync = false; return; }
     const data = snapshot.val();
     if (data && data.players) {
-      players = data.players;
+      players = toArray(data.players);
+      players.forEach(p => { if (p.tags) p.tags = toArray(p.tags); });
       nextId = data.nextId || 100;
       players.forEach(ensurePlayerFields);
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ players, nextId }));
@@ -1158,7 +1175,7 @@ function initFirebaseSync() {
   expertsRef.on('value', (snapshot) => {
     const data = snapshot.val();
     if (data) {
-      experts = Array.isArray(data) ? data : Object.values(data);
+      experts = fixExperts(toArray(data));
       localStorage.setItem(EXPERTS_KEY, JSON.stringify(experts));
       const activeTab = document.querySelector('.tab-btn.active');
       if (activeTab && (activeTab.dataset.tab === 'experts' || activeTab.dataset.tab === 'consensus')) {
@@ -1178,7 +1195,8 @@ function initFirebaseSync() {
       expertsRef.set(experts);
     } else {
       // Firebase has data — use it
-      players = data.players;
+      players = toArray(data.players);
+      players.forEach(p => { if (p.tags) p.tags = toArray(p.tags); });
       nextId = data.nextId || 100;
       players.forEach(ensurePlayerFields);
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ players, nextId }));
