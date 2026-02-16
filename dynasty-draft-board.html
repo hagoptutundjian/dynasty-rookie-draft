@@ -596,7 +596,16 @@ body {
   grid-template-columns: repeat(4, 1fr);
   gap: 1rem;
 }
-@media (max-width: 900px) { .pos-columns { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 900px) {
+  #positional-view {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .pos-columns {
+    grid-template-columns: repeat(4, minmax(160px, 1fr));
+    min-width: 680px;
+  }
+}
 
 /* === MOBILE PORTRAIT === */
 @media (max-width: 600px) {
