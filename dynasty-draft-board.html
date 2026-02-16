@@ -279,6 +279,7 @@ body {
 .tier-8 .tier-header { background: #be123c; }
 .tier-9 .tier-header { background: #9f1239; }
 .tier-10 .tier-header { background: #881337; }
+.tier-11 .tier-header { background: #6b7280; }
 
 /* === PLAYER ROW === */
 .player-row {
@@ -741,12 +742,6 @@ body {
         <button class="filter-btn pos-te" data-pos="TE">TE</button>
       </div>
       <div class="toolbar-group">
-        <span class="toolbar-label">Tier</span>
-        <select id="tier-filter" class="search-input" style="width:90px">
-          <option value="">All</option>
-        </select>
-      </div>
-      <div class="toolbar-group">
         <span class="toolbar-label">Tag</span>
         <select id="tag-filter" class="search-input" style="width:100px">
           <option value="">All</option>
@@ -1056,7 +1051,6 @@ let editingPlayerId = null;
 
 // Filters
 let activePositions = new Set();
-let activeTier = '';
 let activeTag = '';
 let activeRound = '';
 let searchQuery = '';
@@ -1295,7 +1289,6 @@ function renderAll() {
 function getFilteredPlayers() {
   return players.filter(p => {
     if (activePositions.size > 0 && !activePositions.has(p.pos)) return false;
-    if (activeTier && p.tier !== parseInt(activeTier)) return false;
     if (activeTag && (!p.tags || !p.tags.includes(activeTag))) return false;
     if (activeRound) {
       const pickNum = parseInt(p.draftPick);
@@ -1326,14 +1319,6 @@ function renderRankings() {
   const container = document.getElementById('rankings-list');
   const filtered = getFilteredPlayers();
   const tiers = getTiers(filtered);
-
-  const allTiers = [...new Set(players.map(p => p.tier))].sort((a, b) => a - b);
-  const tierFilter = document.getElementById('tier-filter');
-  const currentVal = tierFilter.value;
-  tierFilter.innerHTML = '<option value="">All Tiers</option>';
-  allTiers.forEach(t => {
-    tierFilter.innerHTML += `<option value="${t}"${currentVal == t ? ' selected' : ''}>Tier ${t}</option>`;
-  });
 
   if (filtered.length === 0) {
     container.innerHTML = '<div class="no-results">No players match your filters.</div>';
@@ -1483,7 +1468,6 @@ document.querySelectorAll('#tab-rankings .filter-btn[data-pos]').forEach(btn => 
   });
 });
 
-document.getElementById('tier-filter').addEventListener('change', (e) => { activeTier = e.target.value; renderRankings(); });
 document.getElementById('tag-filter').addEventListener('change', (e) => { activeTag = e.target.value; renderRankings(); });
 document.getElementById('round-filter').addEventListener('change', (e) => { activeRound = e.target.value; renderRankings(); });
 document.getElementById('search-input').addEventListener('input', (e) => { searchQuery = e.target.value; renderRankings(); });
