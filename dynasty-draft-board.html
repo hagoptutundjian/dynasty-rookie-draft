@@ -664,8 +664,16 @@ body {
   .toolbar-group { flex-wrap: wrap; }
   .tab-nav { gap: 0; flex-wrap: wrap; padding: 0.25rem 0.5rem; }
   .tab-btn { font-size: 0.72rem; padding: 0.5rem 0.6rem; }
-  .app-header { padding: 0.75rem 1rem; }
-  .app-header h1 { font-size: 1.2rem; }
+  .app-header { padding: 0.6rem 0.75rem; flex-wrap: wrap; justify-content: center; gap: 0.4rem; }
+  .app-header h1 { font-size: 1rem; }
+  .app-header p { font-size: 0.68rem; }
+  .header-center { width: 100%; }
+  .header-actions {
+    position: static;
+    transform: none;
+    justify-content: center;
+  }
+  .theme-toggle, .undo-btn, .redo-btn { width: 32px; height: 32px; font-size: 0.95rem; }
   .tier-header h3 { font-size: 0.82rem; }
   .main-container { padding: 0.5rem; }
   .consensus-header, .consensus-grid {
