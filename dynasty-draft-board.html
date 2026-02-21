@@ -1853,7 +1853,8 @@ function renderExperts() {
     return;
   }
 
-  container.innerHTML = experts.map(ex => {
+  const sortedExperts = [...experts].sort((a, b) => (b.weight || 0) - (a.weight || 0));
+  container.innerHTML = sortedExperts.map(ex => {
     const sorted = [...players].sort((a, b) => {
       const ra = ex.rankings[a.id], rb = ex.rankings[b.id];
       if (ra == null && rb == null) return a.rank - b.rank;
