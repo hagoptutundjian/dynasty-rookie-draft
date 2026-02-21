@@ -728,6 +728,7 @@ body {
   gap: 0.4rem;
 }
 .pos-player-row:last-child { border-bottom: none; }
+.pos-tier-break { border-top: 2px solid var(--border); margin: 0.25rem 0.5rem; opacity: 0.6; }
 .pos-player-row:hover { background: var(--surface-2); }
 .pos-rank { font-weight: 800; color: var(--text-muted); text-align: center; font-size: 0.78rem; }
 .overall-rank { font-size: 0.68rem; color: var(--text-muted); text-align: center; }
@@ -1909,7 +1910,9 @@ function renderPositional() {
         ${posPlayers.length === 0 ? '<div class="no-results">None</div>' : posPlayers.map((p, i) => {
           const draftStr = p.draftPick || p.draftTeam
             ? ` <span style="font-size:0.65rem;color:var(--primary-hover)">${escHtml(p.draftPick)}${p.draftPick && p.draftTeam ? ' ' : ''}${escHtml(p.draftTeam)}</span>` : '';
-          return `<div class="pos-player-row${p.drafted ? ' drafted' : ''}">
+          const prevTier = i > 0 ? posPlayers[i - 1].tier : p.tier;
+          const tierBreak = p.tier !== prevTier ? '<div class="pos-tier-break"></div>' : '';
+          return `${tierBreak}<div class="pos-player-row${p.drafted ? ' drafted' : ''}">
             <div class="pos-rank">${i + 1}</div>
             <div class="overall-rank">#${p.rank}</div>
             <div style="font-size:0.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><button class="pos-drafted-toggle${p.drafted ? ' active' : ''}" onclick="toggleDrafted(${p.id})" title="Mark as drafted">&#10003;</button>${escHtml(p.name)}${draftStr}</div>
