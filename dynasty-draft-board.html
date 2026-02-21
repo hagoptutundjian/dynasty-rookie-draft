@@ -728,7 +728,24 @@ body {
   gap: 0.4rem;
 }
 .pos-player-row:last-child { border-bottom: none; }
-.pos-tier-break { border-top: 2px solid var(--border); margin: 0.25rem 0.5rem; opacity: 0.6; }
+.pos-tier-break {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.75rem;
+  font-size: 0.55rem;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+.pos-tier-break::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--primary);
+  opacity: 0.35;
+}
 .pos-player-row:hover { background: var(--surface-2); }
 .pos-rank { font-weight: 800; color: var(--text-muted); text-align: center; font-size: 0.78rem; }
 .overall-rank { font-size: 0.68rem; color: var(--text-muted); text-align: center; }
@@ -1911,7 +1928,7 @@ function renderPositional() {
           const draftStr = p.draftPick || p.draftTeam
             ? ` <span style="font-size:0.65rem;color:var(--primary-hover)">${escHtml(p.draftPick)}${p.draftPick && p.draftTeam ? ' ' : ''}${escHtml(p.draftTeam)}</span>` : '';
           const prevTier = i > 0 ? posPlayers[i - 1].tier : p.tier;
-          const tierBreak = p.tier !== prevTier ? '<div class="pos-tier-break"></div>' : '';
+          const tierBreak = p.tier !== prevTier ? `<div class="pos-tier-break">T${p.tier}</div>` : '';
           return `${tierBreak}<div class="pos-player-row${p.drafted ? ' drafted' : ''}">
             <div class="pos-rank">${i + 1}</div>
             <div class="overall-rank">#${p.rank}</div>
