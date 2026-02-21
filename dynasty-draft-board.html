@@ -10,6 +10,7 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <style>
 /* ==========================================
    THEME VARIABLES
@@ -857,6 +858,50 @@ body {
 .filter-btn.tag-sleeper.active { border-color: var(--tag-sleeper); color: var(--tag-sleeper); background: rgba(168,85,247,0.1); }
 .filter-btn.tag-bust.active { border-color: var(--tag-bust); color: var(--tag-bust); background: rgba(249,115,22,0.1); }
 .filter-btn.tag-watch.active { border-color: var(--tag-watch); color: var(--tag-watch); background: rgba(59,130,246,0.1); }
+
+/* === CHANGE LOG === */
+.changelog-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.84rem;
+}
+.changelog-entry:hover { background: var(--surface-2); }
+.changelog-time {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  min-width: 110px;
+}
+.changelog-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.badge-move { background: rgba(59,130,246,0.15); color: #60a5fa; }
+.badge-add { background: rgba(34,197,94,0.15); color: #4ade80; }
+.badge-delete { background: rgba(239,68,68,0.15); color: #f87171; }
+.badge-edit { background: rgba(249,115,22,0.15); color: #fbbf24; }
+.badge-draft { background: rgba(168,85,247,0.15); color: #c084fc; }
+.changelog-msg { color: var(--text); }
+#changelog-list {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+@media (max-width: 600px) {
+  .changelog-entry { padding: 0.5rem 0.75rem; gap: 0.5rem; font-size: 0.78rem; }
+  .changelog-time { min-width: 85px; font-size: 0.65rem; }
+}
 </style>
 </head>
 <body>
@@ -879,6 +924,7 @@ body {
   <button class="tab-btn" data-tab="consensus">Consensus</button>
   <button class="tab-btn" data-tab="experts">Manage Experts</button>
   <button class="tab-btn" data-tab="manage">Manage Board</button>
+  <button class="tab-btn" data-tab="changelog">Change Log</button>
 </nav>
 
 <div class="main-container">
@@ -925,6 +971,7 @@ body {
       <div class="toolbar-spacer"></div>
       <button class="btn btn-primary" id="btn-add-player">+ Add Player</button>
       <button class="btn btn-outline" id="btn-export">Export Excel</button>
+      <button class="btn btn-outline" id="btn-share" onclick="shareRankings()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>Share</button>
       <button class="btn btn-outline" id="btn-undraft-all" onclick="undraftAll()" title="Clear all drafted marks">Undraft All</button>
     </div>
     <div id="rankings-list"></div>
@@ -1012,6 +1059,22 @@ body {
         <button class="btn btn-danger" id="btn-clear-experts">Clear All Experts</button>
       </div>
     </div>
+  </div>
+
+  <!-- ===== CHANGE LOG TAB ===== -->
+  <div id="tab-changelog" class="tab-content">
+    <div class="toolbar">
+      <div class="toolbar-group">
+        <button class="filter-btn changelog-type-filter" data-type="move">Moves</button>
+        <button class="filter-btn changelog-type-filter" data-type="edit">Edits</button>
+        <button class="filter-btn changelog-type-filter" data-type="add">Adds</button>
+        <button class="filter-btn changelog-type-filter" data-type="delete">Deletes</button>
+        <button class="filter-btn changelog-type-filter" data-type="draft">Drafts</button>
+      </div>
+      <div class="toolbar-spacer"></div>
+      <button class="btn btn-danger btn-sm" id="btn-clear-changelog">Clear Log</button>
+    </div>
+    <div id="changelog-list"></div>
   </div>
 
 </div>
@@ -1202,8 +1265,10 @@ const TAG_LABELS = {riser:'Riser',faller:'Faller',sleeper:'Sleeper',bust:'Bust R
 // ==========================================
 let players = [];
 let experts = [];
+let changelog = [];
 let nextId = 100;
 let editingPlayerId = null;
+let changelogTypeFilter = new Set();
 
 // Filters
 let activePositions = new Set();
@@ -1238,6 +1303,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const playersRef = db.ref('players');
 const expertsRef = db.ref('experts');
+const changelogRef = db.ref('changelog');
 let firebaseReady = false;
 let ignoreNextSync = false;
 
@@ -1246,6 +1312,7 @@ let ignoreNextSync = false;
 // ==========================================
 const STORAGE_KEY = 'dynasty_draft_board_2026';
 const EXPERTS_KEY = 'dynasty_draft_experts_2026';
+const CHANGELOG_KEY = 'dynasty_draft_changelog_2026';
 const THEME_KEY = 'dynasty_draft_theme';
 
 function ensurePlayerFields(p) {
@@ -1287,6 +1354,8 @@ function loadData() {
   }
   const expertsSaved = localStorage.getItem(EXPERTS_KEY);
   if (expertsSaved) experts = JSON.parse(expertsSaved);
+  const changelogSaved = localStorage.getItem(CHANGELOG_KEY);
+  if (changelogSaved) changelog = JSON.parse(changelogSaved);
 
   // Theme
   const theme = localStorage.getItem(THEME_KEY) || 'dark';
@@ -1305,6 +1374,42 @@ function saveData() {
     playersRef.set({ players, nextId });
     expertsRef.set(experts);
   }
+}
+
+function formatDateTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+         ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function addChangelogEntry(message, type) {
+  changelog.unshift({ timestamp: Date.now(), message, type });
+  if (changelog.length > 200) changelog = changelog.slice(0, 200);
+  localStorage.setItem(CHANGELOG_KEY, JSON.stringify(changelog));
+  if (firebaseReady) changelogRef.set(changelog);
+  const activeTab = document.querySelector('.tab-btn.active');
+  if (activeTab && activeTab.dataset.tab === 'changelog') renderChangelog();
+}
+
+function renderChangelog() {
+  const container = document.getElementById('changelog-list');
+  let entries = changelog;
+  if (changelogTypeFilter.size > 0) {
+    entries = entries.filter(e => changelogTypeFilter.has(e.type));
+  }
+  if (entries.length === 0) {
+    container.innerHTML = '<div class="empty-state"><p>No changes recorded yet.</p></div>';
+    return;
+  }
+  container.innerHTML = entries.map(entry => {
+    const time = formatDateTime(entry.timestamp);
+    return `<div class="changelog-entry">
+      <span class="changelog-time">${time}</span>
+      <span class="changelog-badge badge-${entry.type}">${entry.type}</span>
+      <span class="changelog-msg">${escHtml(entry.message)}</span>
+    </div>`;
+  }).join('');
 }
 
 // Listen for real-time changes from other devices
@@ -1335,6 +1440,16 @@ function initFirebaseSync() {
     }
   });
 
+  changelogRef.on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+      changelog = toArray(data);
+      localStorage.setItem(CHANGELOG_KEY, JSON.stringify(changelog));
+      const activeTab = document.querySelector('.tab-btn.active');
+      if (activeTab && activeTab.dataset.tab === 'changelog') renderChangelog();
+    }
+  });
+
   // On first connect, push local data if Firebase is empty
   playersRef.once('value', (snapshot) => {
     firebaseReady = true;
@@ -1343,6 +1458,7 @@ function initFirebaseSync() {
       // Firebase is empty — push local data up
       playersRef.set({ players, nextId });
       expertsRef.set(experts);
+      changelogRef.set(changelog);
     } else {
       // Firebase has data — use it
       players = toArray(data.players);
@@ -1425,6 +1541,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'consensus') renderConsensus();
     if (btn.dataset.tab === 'experts') renderExperts();
     if (btn.dataset.tab === 'positional') renderPositional();
+    if (btn.dataset.tab === 'changelog') renderChangelog();
   });
 });
 
@@ -1547,6 +1664,7 @@ function toggleDrafted(id) {
   const p = players.find(pl => pl.id === id);
   if (!p) return;
   p.drafted = !p.drafted;
+  addChangelogEntry(`${p.name} ${p.drafted ? 'marked as drafted' : 'unmarked as drafted'} (#${p.rank})`, 'draft');
   saveData();
   renderRankings();
   const activeTab = document.querySelector('.tab-btn.active');
@@ -1570,10 +1688,12 @@ function movePlayer(id, direction) {
   const newIdx = idx + direction;
   if (newIdx < 0 || newIdx >= players.length) return;
   pushUndo();
+  const oldRank = idx + 1;
   const [moved] = players.splice(idx, 1);
   moved.tier = players[Math.min(newIdx, players.length - 1)].tier;
   players.splice(newIdx, 0, moved);
   recalcRanks();
+  addChangelogEntry(`${moved.name} moved from #${oldRank} to #${moved.rank}`, 'move');
   saveData();
   renderRankings();
 }
@@ -1617,12 +1737,16 @@ function onDrop(e) {
   const tgtIdx = players.findIndex(p => p.id === targetId);
   if (srcIdx === -1 || tgtIdx === -1) return;
 
+  const playerName = players[srcIdx].name;
+  const oldRank = players[srcIdx].rank;
+
   const [moved] = players.splice(srcIdx, 1);
   const newTgtIdx = players.findIndex(p => p.id === targetId);
   moved.tier = players[newTgtIdx].tier;
   players.splice(newTgtIdx, 0, moved);
 
   recalcRanks();
+  addChangelogEntry(`${playerName} moved from #${oldRank} to #${moved.rank}`, 'move');
   saveData();
   renderRankings();
 }
@@ -1687,7 +1811,10 @@ function deletePlayer(id) {
   if (!p) return;
   if (!confirm(`Remove ${p.name} from your rankings?`)) return;
   pushUndo();
+  const deletedName = p.name;
+  const deletedRank = p.rank;
   players = players.filter(pl => pl.id !== id);
+  addChangelogEntry(`${deletedName} deleted from #${deletedRank}`, 'delete');
   recalcRanks();
   saveData();
   renderRankings();
@@ -1711,10 +1838,15 @@ document.getElementById('modal-save').addEventListener('click', () => {
 
   pushUndo();
 
+  let oldRank = 0, oldTier = 0, oldName = '';
+  let newPlayer = null;
+
   if (editingPlayerId !== null) {
     const p = players.find(pl => pl.id === editingPlayerId);
     if (p) {
-      const oldTier = p.tier;
+      oldTier = p.tier;
+      oldRank = p.rank;
+      oldName = p.name;
       p.name = name;
       p.pos = pos;
       p.tier = tier;
@@ -1745,7 +1877,7 @@ document.getElementById('modal-save').addEventListener('click', () => {
       }
     }
   } else {
-    const newPlayer = { id: nextId++, rank: 0, tier, name, pos, draftPick, draftTeam, notes, tags, drafted: false };
+    newPlayer = { id: nextId++, rank: 0, tier, name, pos, draftPick, draftTeam, notes, tags, drafted: false };
     let insertIdx = players.length;
     for (let i = players.length - 1; i >= 0; i--) {
       if (players[i].tier === tier) { insertIdx = i + 1; break; }
@@ -1758,6 +1890,20 @@ document.getElementById('modal-save').addEventListener('click', () => {
   }
 
   recalcRanks();
+
+  if (editingPlayerId !== null) {
+    const p = players.find(pl => pl.id === editingPlayerId);
+    if (p) {
+      const changes = [];
+      if (p.rank !== oldRank) changes.push(`rank #${oldRank} to #${p.rank}`);
+      if (tier !== oldTier) changes.push(`tier T${oldTier} to T${tier}`);
+      if (name !== oldName) changes.push(`name "${oldName}" to "${name}"`);
+      if (changes.length > 0) addChangelogEntry(`${name} edited: ${changes.join(', ')}`, 'edit');
+    }
+  } else if (newPlayer) {
+    addChangelogEntry(`${name} added at #${newPlayer.rank} (T${tier}, ${pos})`, 'add');
+  }
+
   saveData();
   renderRankings();
   document.getElementById('player-modal').classList.remove('active');
@@ -2255,6 +2401,109 @@ document.getElementById('btn-clear-experts').addEventListener('click', () => {
   saveData();
   renderExperts();
 });
+
+// Changelog filter buttons
+document.querySelectorAll('.changelog-type-filter').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const type = btn.dataset.type;
+    if (changelogTypeFilter.has(type)) { changelogTypeFilter.delete(type); btn.classList.remove('active'); }
+    else { changelogTypeFilter.add(type); btn.classList.add('active'); }
+    renderChangelog();
+  });
+});
+
+document.getElementById('btn-clear-changelog').addEventListener('click', () => {
+  if (!confirm('Clear all changelog entries? This cannot be undone.')) return;
+  changelog = [];
+  localStorage.setItem(CHANGELOG_KEY, JSON.stringify(changelog));
+  if (firebaseReady) changelogRef.set([]);
+  renderChangelog();
+});
+
+// ==========================================
+// SHARE RANKINGS
+// ==========================================
+function buildShareCard() {
+  const card = document.createElement('div');
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const bg = isDark ? '#0f1117' : '#f1f5f9';
+  const surface = isDark ? '#1a1d27' : '#ffffff';
+  const text = isDark ? '#e8eaf0' : '#1e293b';
+  const muted = isDark ? '#8b90a0' : '#64748b';
+  const border = isDark ? '#2d3348' : '#e2e8f0';
+  const posColors = { QB: isDark ? '#f87171' : '#dc2626', RB: isDark ? '#60a5fa' : '#2563eb', WR: isDark ? '#4ade80' : '#16a34a', TE: isDark ? '#fbbf24' : '#d97706' };
+  const tierColors = { 1:'#6366f1', 2:'#8b5cf6', 3:'#a855f7', 4:'#d946ef', 5:'#ec4899', 6:'#f43f5e', 7:'#ef4444', 8:'#f97316', 9:'#eab308', 10:'#84cc16', 11:'#6b7280' };
+
+  const showPlayers = players.filter(p => !p.drafted);
+  const limit = Math.min(showPlayers.length, 48);
+  const displayPlayers = showPlayers.slice(0, limit);
+  const remaining = showPlayers.length - limit;
+  const date = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+  let currentTier = null;
+  let rowsHtml = '';
+  displayPlayers.forEach(p => {
+    if (p.tier !== currentTier) {
+      currentTier = p.tier;
+      const tc = tierColors[p.tier] || '#6b7280';
+      rowsHtml += `<div style="padding:4px 12px;font-size:10px;font-weight:700;color:white;background:${tc};text-transform:uppercase;letter-spacing:0.05em">Tier ${p.tier}</div>`;
+    }
+    const pc = posColors[p.pos] || muted;
+    rowsHtml += `<div style="display:grid;grid-template-columns:30px 1fr 36px;align-items:center;padding:3px 12px;border-bottom:1px solid ${border};font-size:12px;gap:6px">
+      <span style="font-weight:700;color:${muted};text-align:right">${p.rank}</span>
+      <span style="font-weight:600;color:${text}">${escHtml(p.name)}</span>
+      <span style="font-size:10px;font-weight:700;color:${pc}">${p.pos}</span>
+    </div>`;
+  });
+  if (remaining > 0) {
+    rowsHtml += `<div style="padding:6px 12px;font-size:11px;color:${muted};text-align:center">and ${remaining} more...</div>`;
+  }
+
+  card.style.cssText = `position:fixed;left:-9999px;top:0;width:380px;font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:${bg};border-radius:12px;overflow:hidden;`;
+  card.innerHTML = `
+    <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 30%,#4338ca 60%,#6366f1 100%);padding:14px 16px;text-align:center">
+      <div style="font-size:16px;font-weight:800;color:white">Dynasty Rookie Draft Board</div>
+      <div style="font-size:10px;color:rgba(255,255,255,0.7);margin-top:2px">${date}</div>
+    </div>
+    <div style="background:${surface}">${rowsHtml}</div>
+    <div style="padding:6px 12px;font-size:9px;color:${muted};text-align:center;background:${surface};border-top:1px solid ${border}">Generated by Dynasty Rookie Draft Board</div>
+  `;
+  return card;
+}
+
+async function shareRankings() {
+  const btn = document.getElementById('btn-share');
+  const origHtml = btn.innerHTML;
+  btn.innerHTML = 'Generating...';
+  btn.disabled = true;
+  try {
+    const card = buildShareCard();
+    document.body.appendChild(card);
+    await new Promise(r => setTimeout(r, 100));
+    const canvas = await html2canvas(card, { backgroundColor: null, scale: 2, useCORS: true, logging: false });
+    document.body.removeChild(card);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (navigator.share && navigator.canShare) {
+      const file = new File([blob], 'dynasty-rankings.png', { type: 'image/png' });
+      const shareData = { files: [file], title: 'Dynasty Rookie Draft Board' };
+      if (navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+        return;
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'Dynasty_Rankings.png';
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Share failed:', err);
+  } finally {
+    btn.innerHTML = origHtml;
+    btn.disabled = false;
+  }
+}
 
 // ==========================================
 // INIT
