@@ -605,29 +605,72 @@ body {
 }
 .expert-card-header h4 { font-size: 0.88rem; font-weight: 600; }
 .expert-card-body { padding: 0.6rem 1rem; }
-.expert-rank-row {
-  display: grid;
-  grid-template-columns: 1fr 70px;
+.expert-card-body.scrollable { max-height: 400px; overflow-y: auto; }
+.expert-drag-row {
+  display: flex;
   align-items: center;
-  padding: 0.3rem 0;
+  padding: 0.35rem 0.5rem;
   border-bottom: 1px solid rgba(45,51,72,0.3);
   gap: 0.5rem;
+  cursor: grab;
+  user-select: none;
+  transition: background 0.15s;
 }
-.expert-rank-row:last-child { border-bottom: none; }
-.expert-rank-input {
-  width: 100%;
-  padding: 0.3rem 0.4rem;
+.expert-drag-row:last-child { border-bottom: none; }
+.expert-drag-row:hover { background: var(--surface-2); }
+.expert-drag-row.dragging { opacity: 0.4; background: var(--surface-2); }
+.expert-drag-row.drag-over { border-top: 2px solid var(--primary); }
+.expert-drag-row .expert-rank-num {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  min-width: 28px;
+  text-align: right;
+}
+.expert-drag-row .move-arrows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.expert-drag-row:hover .move-arrows { opacity: 1; }
+.expert-drag-row .move-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.6rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 12px;
+  border-radius: 3px;
+  transition: all 0.1s;
+}
+.expert-drag-row .move-btn:hover { background: var(--surface-2); color: var(--primary); }
+.expert-drag-row .move-btn:active { background: var(--primary); color: white; }
+@media (max-width: 600px) {
+  .expert-drag-row .move-arrows { opacity: 1; }
+  .expert-drag-row .move-btn { width: 20px; height: 16px; font-size: 0.7rem; }
+}
+.expert-reset-btn {
+  display: block;
+  margin: 0.5rem auto;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 0.82rem;
-  text-align: center;
+  cursor: pointer;
   font-family: var(--font);
-  outline: none;
+  transition: all 0.15s;
 }
-.expert-rank-input:focus { border-color: var(--primary); }
-.expert-card-body.scrollable { max-height: 400px; overflow-y: auto; }
+.expert-reset-btn:hover { color: var(--primary); border-color: var(--primary); }
 
 /* === POSITIONAL RANKINGS === */
 .pos-columns {
@@ -1761,7 +1804,9 @@ document.getElementById('expert-cancel').addEventListener('click', () => {
 document.getElementById('expert-save').addEventListener('click', () => {
   const name = document.getElementById('expert-name-input').value.trim();
   if (!name) { alert('Please enter an expert name.'); return; }
-  experts.push({ id: Date.now(), name, rankings: {}, collapsed: true });
+  const initialRankings = {};
+  players.forEach(p => { initialRankings[p.id] = p.rank; });
+  experts.push({ id: Date.now(), name, rankings: initialRankings, collapsed: true });
   saveData();
   renderExperts();
   document.getElementById('expert-modal').classList.remove('active');
@@ -1776,7 +1821,16 @@ function renderExperts() {
     return;
   }
 
-  container.innerHTML = experts.map(ex => `
+  container.innerHTML = experts.map(ex => {
+    const sorted = [...players].sort((a, b) => {
+      const ra = ex.rankings[a.id], rb = ex.rankings[b.id];
+      if (ra == null && rb == null) return a.rank - b.rank;
+      if (ra == null) return 1;
+      if (rb == null) return -1;
+      return ra - rb;
+    });
+
+    return `
     <div class="expert-card" data-expert-id="${ex.id}">
       <div class="expert-card-header" onclick="toggleExpert(${ex.id})">
         <h4>${escHtml(ex.name)} <span style="color:var(--text-muted);font-weight:400;font-size:0.78rem">(${Object.keys(ex.rankings).filter(k => ex.rankings[k]).length}/${players.length} ranked)</span></h4>
@@ -1786,24 +1840,32 @@ function renderExperts() {
         </div>
       </div>
       ${ex.collapsed === false ? `
-        <div class="expert-card-body scrollable">
-          ${players.map(p => `
-            <div class="expert-rank-row">
-              <div style="display:flex;align-items:center;gap:0.4rem">
-                <span style="color:var(--text-muted);font-size:0.75rem;width:28px;text-align:right">${p.rank}.</span>
-                <span style="font-size:0.82rem">${escHtml(p.name)}</span>
-                <span class="pos-badge pos-${p.pos}" style="font-size:0.58rem;padding:0.08rem 0.35rem">${p.pos}</span>
+        <div class="expert-card-body scrollable" data-expert-body="${ex.id}">
+          ${sorted.map((p, idx) => `
+            <div class="expert-drag-row" draggable="true" data-player-id="${p.id}" data-expert-id="${ex.id}">
+              <div class="expert-rank-num">${idx + 1}.</div>
+              <div class="move-arrows">
+                <button class="move-btn" onclick="event.stopPropagation();moveExpertPlayer(${ex.id},${p.id},-1)" title="Move up">&#9650;</button>
+                <button class="move-btn" onclick="event.stopPropagation();moveExpertPlayer(${ex.id},${p.id},1)" title="Move down">&#9660;</button>
               </div>
-              <input type="number" class="expert-rank-input" min="1" max="300"
-                value="${ex.rankings[p.id] || ''}"
-                placeholder="-"
-                onchange="updateExpertRank(${ex.id}, ${p.id}, this.value)">
+              <span style="font-size:0.82rem;flex:1">${escHtml(p.name)}</span>
+              <span class="pos-badge pos-${p.pos}" style="font-size:0.58rem;padding:0.08rem 0.35rem">${p.pos}</span>
             </div>
           `).join('')}
+          <button class="expert-reset-btn" onclick="resetExpertToMyOrder(${ex.id})">Reset to My Order</button>
         </div>
       ` : ''}
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+
+  // Attach drag-and-drop listeners
+  container.querySelectorAll('.expert-drag-row').forEach(row => {
+    row.addEventListener('dragstart', onExpertDragStart);
+    row.addEventListener('dragend', onExpertDragEnd);
+    row.addEventListener('dragover', onExpertDragOver);
+    row.addEventListener('dragleave', onExpertDragLeave);
+    row.addEventListener('drop', onExpertDrop);
+  });
 }
 
 function toggleExpert(id) {
@@ -1820,13 +1882,108 @@ function deleteExpert(id) {
   renderExperts();
 }
 
-function updateExpertRank(expertId, playerId, value) {
+// Expert drag-and-drop state
+let expertDragSrcPlayerId = null;
+let expertDragSrcExpertId = null;
+
+function onExpertDragStart(e) {
+  expertDragSrcPlayerId = parseInt(this.dataset.playerId);
+  expertDragSrcExpertId = parseInt(this.dataset.expertId);
+  this.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', expertDragSrcPlayerId);
+}
+
+function onExpertDragEnd() {
+  this.classList.remove('dragging');
+  const body = this.closest('.expert-card-body');
+  if (body) body.querySelectorAll('.expert-drag-row').forEach(r => r.classList.remove('drag-over'));
+  expertDragSrcPlayerId = null;
+  expertDragSrcExpertId = null;
+}
+
+function onExpertDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const targetExpertId = parseInt(this.dataset.expertId);
+  if (targetExpertId !== expertDragSrcExpertId) return;
+  const targetPlayerId = parseInt(this.dataset.playerId);
+  if (targetPlayerId !== expertDragSrcPlayerId) {
+    const body = this.closest('.expert-card-body');
+    if (body) body.querySelectorAll('.expert-drag-row').forEach(r => r.classList.remove('drag-over'));
+    this.classList.add('drag-over');
+  }
+}
+
+function onExpertDragLeave() {
+  this.classList.remove('drag-over');
+}
+
+function onExpertDrop(e) {
+  e.preventDefault();
+  this.classList.remove('drag-over');
+  const targetPlayerId = parseInt(this.dataset.playerId);
+  const targetExpertId = parseInt(this.dataset.expertId);
+  if (targetExpertId !== expertDragSrcExpertId) return;
+  if (targetPlayerId === expertDragSrcPlayerId) return;
+
+  const ex = experts.find(ex => ex.id === targetExpertId);
+  if (!ex) return;
+
+  const orderedIds = getExpertSortedPlayerIds(ex);
+  const srcIdx = orderedIds.indexOf(expertDragSrcPlayerId);
+  const tgtIdx = orderedIds.indexOf(targetPlayerId);
+  if (srcIdx === -1 || tgtIdx === -1) return;
+
+  orderedIds.splice(srcIdx, 1);
+  const newTgtIdx = orderedIds.indexOf(targetPlayerId);
+  orderedIds.splice(newTgtIdx, 0, expertDragSrcPlayerId);
+
+  recalcExpertRanks(ex, orderedIds);
+  saveData();
+  renderExperts();
+}
+
+function getExpertSortedPlayerIds(ex) {
+  return [...players].sort((a, b) => {
+    const ra = ex.rankings[a.id], rb = ex.rankings[b.id];
+    if (ra == null && rb == null) return a.rank - b.rank;
+    if (ra == null) return 1;
+    if (rb == null) return -1;
+    return ra - rb;
+  }).map(p => p.id);
+}
+
+function recalcExpertRanks(ex, orderedIds) {
+  ex.rankings = {};
+  orderedIds.forEach((pid, i) => {
+    ex.rankings[pid] = i + 1;
+  });
+}
+
+function moveExpertPlayer(expertId, playerId, direction) {
   const ex = experts.find(e => e.id === expertId);
   if (!ex) return;
-  const num = parseInt(value);
-  if (value === '' || isNaN(num)) delete ex.rankings[playerId];
-  else ex.rankings[playerId] = num;
+  const orderedIds = getExpertSortedPlayerIds(ex);
+  const idx = orderedIds.indexOf(playerId);
+  if (idx === -1) return;
+  const newIdx = idx + direction;
+  if (newIdx < 0 || newIdx >= orderedIds.length) return;
+  orderedIds.splice(idx, 1);
+  orderedIds.splice(newIdx, 0, playerId);
+  recalcExpertRanks(ex, orderedIds);
   saveData();
+  renderExperts();
+}
+
+function resetExpertToMyOrder(expertId) {
+  const ex = experts.find(e => e.id === expertId);
+  if (!ex) return;
+  if (!confirm(`Reset ${ex.name}'s rankings to your current board order?`)) return;
+  ex.rankings = {};
+  players.forEach(p => { ex.rankings[p.id] = p.rank; });
+  saveData();
+  renderExperts();
 }
 
 // ==========================================
