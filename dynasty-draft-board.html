@@ -723,11 +723,9 @@ body {
   grid-template-columns: 32px 32px 1fr;
   align-items: center;
   padding: 0.4rem 0.75rem;
-  border-bottom: 1px solid var(--border);
   font-size: 0.82rem;
   gap: 0.4rem;
 }
-.pos-player-row:last-child { border-bottom: none; }
 .pos-tier-break {
   display: flex;
   align-items: center;
@@ -1927,7 +1925,7 @@ function renderPositional() {
         ${posPlayers.length === 0 ? '<div class="no-results">None</div>' : posPlayers.map((p, i) => {
           const draftStr = p.draftPick || p.draftTeam
             ? ` <span style="font-size:0.65rem;color:var(--primary-hover)">${escHtml(p.draftPick)}${p.draftPick && p.draftTeam ? ' ' : ''}${escHtml(p.draftTeam)}</span>` : '';
-          const prevTier = i > 0 ? posPlayers[i - 1].tier : p.tier;
+          const prevTier = i > 0 ? posPlayers[i - 1].tier : null;
           const tierBreak = p.tier !== prevTier ? `<div class="pos-tier-break">T${p.tier}</div>` : '';
           return `${tierBreak}<div class="pos-player-row${p.drafted ? ' drafted' : ''}">
             <div class="pos-rank">${i + 1}</div>
