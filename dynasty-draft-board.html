@@ -1636,9 +1636,10 @@ function recalcRanks() {
 }
 
 function formatRank(rank) {
-  if (rank <= 48) {
-    const round = Math.ceil(rank / 12);
-    const pick = rank - (round - 1) * 12;
+  const r = Math.round(rank);
+  if (r >= 1 && r <= 48) {
+    const round = Math.ceil(r / 12);
+    const pick = r - (round - 1) * 12;
     return `${round}.${String(pick).padStart(2, '0')}`;
   }
   return String(rank);
@@ -2149,7 +2150,7 @@ function renderConsensus() {
       <div class="player-name">${escHtml(p.name)}</div>
       <div><span class="pos-badge pos-${p.pos}">${p.pos}</span></div>
       <div style="text-align:center;color:var(--text-muted)">${formatRank(p.rank)}</div>
-      <div style="text-align:center;font-weight:600">${consensus !== null ? (Math.round(consensus * 10) / 10) : '-'}</div>
+      <div style="text-align:center;font-weight:600">${consensus !== null ? formatRank(Math.round(consensus * 10) / 10) : '-'}</div>
       <div style="text-align:center">${diffHtml}</div>
     </div>`;
   });
