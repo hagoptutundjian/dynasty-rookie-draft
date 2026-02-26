@@ -1573,19 +1573,9 @@ function movePlayer(id, direction) {
   const newIdx = idx + direction;
   if (newIdx < 0 || newIdx >= players.length) return;
   pushUndo();
-  const originalTier = players[idx].tier;
+  const neighborTier = players[newIdx].tier;
   const [moved] = players.splice(idx, 1);
-  // Keep current tier as long as same-tier players remain adjacent.
-  // Only adopt the new tier once you've fully crossed the boundary.
-  if (direction === -1) {
-    // Moving up — keep tier unless no same-tier players remain below newIdx
-    const sameTierBelow = players.slice(newIdx).some(p => p.tier === originalTier);
-    moved.tier = sameTierBelow ? originalTier : players[newIdx].tier;
-  } else {
-    // Moving down — keep tier unless no same-tier players remain above newIdx
-    const sameTierAbove = players.slice(0, newIdx).some(p => p.tier === originalTier);
-    moved.tier = sameTierAbove ? originalTier : players[Math.min(newIdx, players.length - 1)].tier;
-  }
+  moved.tier = neighborTier;
   players.splice(newIdx, 0, moved);
   recalcRanks();
   saveData();
