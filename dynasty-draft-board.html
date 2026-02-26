@@ -316,7 +316,7 @@ body {
   gap: 0;
   position: relative;
 }
-.rank-number { min-width: 30px; }
+.rank-number { min-width: 22px; }
 .move-arrows {
   display: flex;
   flex-direction: column;
@@ -1499,7 +1499,7 @@ function renderRankings() {
           return `
           <div class="player-row${p.drafted ? ' drafted' : ''}" draggable="true" data-id="${p.id}">
             <button class="drafted-toggle${p.drafted ? ' active' : ''}" onclick="event.stopPropagation();toggleDrafted(${p.id})" title="Mark as drafted">&#10003;</button>
-            <div class="player-rank"><span class="rank-number">${formatRank(p.rank)}</span><div class="move-arrows"><button class="move-btn" onclick="event.stopPropagation();movePlayer(${p.id},-1)" title="Move up">&#9650;</button><button class="move-btn" onclick="event.stopPropagation();movePlayer(${p.id},1)" title="Move down">&#9660;</button></div></div>
+            <div class="player-rank"><span class="rank-number">${p.rank}</span><div class="move-arrows"><button class="move-btn" onclick="event.stopPropagation();movePlayer(${p.id},-1)" title="Move up">&#9650;</button><button class="move-btn" onclick="event.stopPropagation();movePlayer(${p.id},1)" title="Move down">&#9660;</button></div></div>
             <div class="player-name-col">
               <div class="player-name">${escHtml(p.name)}</div>
               ${tagsHtml}
@@ -1794,7 +1794,7 @@ document.getElementById('expert-modal').addEventListener('click', (e) => {
 // ==========================================
 document.getElementById('btn-export').addEventListener('click', () => {
   const data = players.map(p => ({
-    Rank: formatRank(p.rank),
+    Rank: p.rank,
     Tier: p.tier,
     'Player Name': p.name,
     Position: p.pos,
@@ -1810,7 +1810,7 @@ document.getElementById('btn-export').addEventListener('click', () => {
 
   if (experts.length > 0) {
     const consensusData = players.map(p => {
-      const row = { Rank: formatRank(p.rank), 'Player Name': p.name, Position: p.pos, Tier: p.tier };
+      const row = { Rank: p.rank, 'Player Name': p.name, Position: p.pos, Tier: p.tier };
       experts.forEach(ex => { row[ex.name] = ex.rankings[p.id] || ''; });
       const avg = getConsensusRank(p.id);
       row['Consensus'] = avg !== null ? Math.round(avg * 10) / 10 : '';
@@ -1826,7 +1826,7 @@ document.getElementById('btn-export').addEventListener('click', () => {
     const posPlayers = players.filter(p => p.pos === pos);
     const posData = posPlayers.map((p, i) => ({
       'Pos Rank': i + 1,
-      'Overall Rank': formatRank(p.rank),
+      'Overall Rank': p.rank,
       'Player Name': p.name,
       Tier: p.tier,
       'Draft Pick': p.draftPick || '',
@@ -2146,11 +2146,11 @@ function renderConsensus() {
       else diffHtml = `<span class="diff-badge diff-even">=</span>`;
     }
     html += `<div class="consensus-grid">
-      <div class="player-rank">${formatRank(p.rank)}</div>
+      <div class="player-rank">${p.rank}</div>
       <div class="player-name">${escHtml(p.name)}</div>
       <div><span class="pos-badge pos-${p.pos}">${p.pos}</span></div>
-      <div style="text-align:center;color:var(--text-muted)">${formatRank(p.rank)}</div>
-      <div style="text-align:center;font-weight:600">${consensus !== null ? formatRank(Math.round(consensus * 10) / 10) : '-'}</div>
+      <div style="text-align:center;color:var(--text-muted)">${p.rank}</div>
+      <div style="text-align:center;font-weight:600">${consensus !== null ? (Math.round(consensus * 10) / 10) : '-'}</div>
       <div style="text-align:center">${diffHtml}</div>
     </div>`;
   });
@@ -2180,7 +2180,7 @@ function renderPositional() {
           const tierBreak = p.tier !== prevTier ? `<div class="pos-tier-break${p.tier === bestAvailTier ? ' best-available' : ''}">T${p.tier}</div>` : '';
           return `${tierBreak}<div class="pos-player-row${p.drafted ? ' drafted' : ''}${p.tier === bestAvailTier ? ' best-avail-tier' : ''}">
             <div class="pos-rank">${i + 1}</div>
-            <div class="overall-rank">${formatRank(p.rank)}</div>
+            <div class="overall-rank">${p.rank}</div>
             <div style="font-size:0.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><button class="pos-drafted-toggle${p.drafted ? ' active' : ''}" onclick="toggleDrafted(${p.id})" title="Mark as drafted">&#10003;</button>${escHtml(p.name)}${draftStr}</div>
           </div>`;
         }).join('')}
@@ -2306,7 +2306,7 @@ function buildShareCard() {
     }
     const pc = posColors[p.pos] || muted;
     rowsHtml += `<div style="display:grid;grid-template-columns:30px 1fr 36px;align-items:center;padding:3px 12px;border-bottom:1px solid ${border};font-size:12px;gap:6px">
-      <span style="font-weight:700;color:${muted};text-align:right">${formatRank(p.rank)}</span>
+      <span style="font-weight:700;color:${muted};text-align:right">${p.rank}</span>
       <span style="font-weight:600;color:${text}">${escHtml(p.name)}</span>
       <span style="font-size:10px;font-weight:700;color:${pc}">${p.pos}</span>
     </div>`;
