@@ -859,6 +859,91 @@ body {
 .filter-btn.tag-bust.active { border-color: var(--tag-bust); color: var(--tag-bust); background: rgba(249,115,22,0.1); }
 .filter-btn.tag-watch.active { border-color: var(--tag-watch); color: var(--tag-watch); background: rgba(59,130,246,0.1); }
 
+/* === CHANGE LOG === */
+.changelog-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.84rem;
+}
+.changelog-entry:hover { background: var(--surface-2); }
+.changelog-time {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  min-width: 110px;
+}
+.changelog-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.badge-edit { background: rgba(59,130,246,0.15); color: #60a5fa; }
+.badge-add { background: rgba(34,197,94,0.15); color: #4ade80; }
+.badge-delete { background: rgba(239,68,68,0.15); color: #f87171; }
+.changelog-msg { color: var(--text); }
+#changelog-list {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.changelog-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.changelog-stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  overflow: hidden;
+}
+.changelog-stat-card h4 {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+}
+.stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0;
+  font-size: 0.82rem;
+}
+.stat-row .stat-name { font-weight: 600; color: var(--text); }
+.stat-bar {
+  height: 6px;
+  border-radius: 3px;
+  margin-top: 2px;
+}
+.stat-count {
+  font-weight: 700;
+  font-size: 0.78rem;
+  min-width: 28px;
+  text-align: right;
+}
+.stat-count.positive { color: #f87171; }
+.stat-count.negative { color: #4ade80; }
+.stat-count.neutral { color: var(--text-muted); }
+@media (max-width: 600px) {
+  .changelog-stats { grid-template-columns: 1fr; }
+  .changelog-entry { padding: 0.5rem 0.75rem; gap: 0.5rem; font-size: 0.78rem; }
+  .changelog-time { min-width: 85px; font-size: 0.65rem; }
+}
 </style>
 </head>
 <body>
@@ -881,6 +966,7 @@ body {
   <button class="tab-btn" data-tab="consensus">Consensus</button>
   <button class="tab-btn" data-tab="experts">Manage Experts</button>
   <button class="tab-btn" data-tab="manage">Manage Board</button>
+  <button class="tab-btn" data-tab="changelog">Change Log</button>
 </nav>
 
 <div class="main-container">
@@ -1017,6 +1103,20 @@ body {
     </div>
   </div>
 
+  <!-- ===== CHANGE LOG TAB ===== -->
+  <div id="tab-changelog" class="tab-content">
+    <div class="toolbar">
+      <div class="toolbar-group">
+        <button class="filter-btn changelog-type-filter" data-type="edit">Edits</button>
+        <button class="filter-btn changelog-type-filter" data-type="add">Adds</button>
+        <button class="filter-btn changelog-type-filter" data-type="delete">Deletes</button>
+      </div>
+      <div class="toolbar-spacer"></div>
+      <button class="btn btn-danger btn-sm" id="btn-clear-changelog">Clear Log</button>
+    </div>
+    <div id="changelog-stats"></div>
+    <div id="changelog-list"></div>
+  </div>
 
 </div>
 
@@ -1206,8 +1306,10 @@ const TAG_LABELS = {riser:'Riser',faller:'Faller',sleeper:'Sleeper',bust:'Bust R
 // ==========================================
 let players = [];
 let experts = [];
+let changelog = [];
 let nextId = 100;
 let editingPlayerId = null;
+let changelogTypeFilter = new Set();
 
 // Filters
 let activePositions = new Set();
@@ -1242,6 +1344,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const playersRef = db.ref('players');
 const expertsRef = db.ref('experts');
+const changelogRef = db.ref('changelog');
 let firebaseReady = false;
 let ignoreNextSync = false;
 
@@ -1250,6 +1353,7 @@ let ignoreNextSync = false;
 // ==========================================
 const STORAGE_KEY = 'dynasty_draft_board_2026';
 const EXPERTS_KEY = 'dynasty_draft_experts_2026';
+const CHANGELOG_KEY = 'dynasty_draft_changelog_2026';
 const THEME_KEY = 'dynasty_draft_theme';
 
 function ensurePlayerFields(p) {
@@ -1291,6 +1395,12 @@ function loadData() {
   }
   const expertsSaved = localStorage.getItem(EXPERTS_KEY);
   if (expertsSaved) experts = JSON.parse(expertsSaved);
+  const changelogSaved = localStorage.getItem(CHANGELOG_KEY);
+  if (changelogSaved) {
+    changelog = JSON.parse(changelogSaved);
+    changelog.forEach(e => { if (e.type === 'move') e.type = 'edit'; });
+  }
+
   // Theme
   const theme = localStorage.getItem(THEME_KEY) || 'dark';
   document.documentElement.setAttribute('data-theme', theme);
@@ -1308,6 +1418,115 @@ function saveData() {
     playersRef.set({ players, nextId });
     expertsRef.set(experts);
   }
+}
+
+function formatDateTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+         ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function addChangelogEntry(message, type) {
+  changelog.unshift({ timestamp: Date.now(), message, type });
+  if (changelog.length > 200) changelog = changelog.slice(0, 200);
+  localStorage.setItem(CHANGELOG_KEY, JSON.stringify(changelog));
+  if (firebaseReady) changelogRef.set(changelog);
+  const activeTab = document.querySelector('.tab-btn.active');
+  if (activeTab && activeTab.dataset.tab === 'changelog') renderChangelog();
+}
+
+function renderChangelog() {
+  const container = document.getElementById('changelog-list');
+  const statsContainer = document.getElementById('changelog-stats');
+  let entries = changelog;
+  if (changelogTypeFilter.size > 0) {
+    entries = entries.filter(e => changelogTypeFilter.has(e.type));
+  }
+  if (entries.length === 0) {
+    statsContainer.innerHTML = '';
+    container.innerHTML = '<div class="empty-state"><p>No changes recorded yet.</p></div>';
+    return;
+  }
+
+  // --- Stats computation ---
+  const nameCounts = {};
+  const netChanges = {};
+  const moveRe = /moved from #(\d+) to #(\d+)/;
+  const rankEditRe = /rank #(\d+) to #(\d+)/;
+  changelog.forEach(entry => {
+    // Extract player name (first word(s) before " moved" or " edited" or " added" or " deleted")
+    const nameMatch = entry.message.match(/^(.+?)(?:\s+(?:moved|edited|added|deleted))/);
+    if (!nameMatch) return;
+    const pName = nameMatch[1];
+    nameCounts[pName] = (nameCounts[pName] || 0) + 1;
+
+    // Track net rank changes from move/rank-edit entries
+    let m = entry.message.match(moveRe) || entry.message.match(rankEditRe);
+    if (m) {
+      const from = parseInt(m[1]), to = parseInt(m[2]);
+      if (!netChanges[pName]) netChanges[pName] = { first: from, last: to };
+      else netChanges[pName].last = to;
+    }
+  });
+
+  // Most changed: top 5 by total changelog mentions
+  const mostChanged = Object.entries(nameCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+  const maxCount = mostChanged.length > 0 ? mostChanged[0][1] : 1;
+
+  // Largest net changes: sort by absolute net movement, top 5
+  const netList = Object.entries(netChanges)
+    .map(([name, d]) => ({ name, net: d.last - d.first }))
+    .filter(d => d.net !== 0)
+    .sort((a, b) => Math.abs(b.net) - Math.abs(a.net))
+    .slice(0, 5);
+  const maxNet = netList.length > 0 ? Math.abs(netList[0].net) : 1;
+
+  let statsHtml = '';
+  if (mostChanged.length > 0 || netList.length > 0) {
+    statsHtml = '<div class="changelog-stats">';
+    if (mostChanged.length > 0) {
+      statsHtml += '<div class="changelog-stat-card"><h4>Most Changed</h4>';
+      mostChanged.forEach(([name, count]) => {
+        const pct = Math.round((count / maxCount) * 100);
+        statsHtml += `<div class="stat-row">
+          <span class="stat-name">${escHtml(name)}</span>
+          <div style="flex:1;margin:0 0.5rem"><div class="stat-bar" style="width:${pct}%;background:#60a5fa"></div></div>
+          <span class="stat-count neutral">${count}x</span>
+        </div>`;
+      });
+      statsHtml += '</div>';
+    }
+    if (netList.length > 0) {
+      statsHtml += '<div class="changelog-stat-card"><h4>Biggest Movers</h4>';
+      netList.forEach(d => {
+        const pct = Math.round((Math.abs(d.net) / maxNet) * 100);
+        const dir = d.net > 0 ? 'positive' : 'negative';
+        const arrow = d.net > 0 ? '\u2193' : '\u2191';
+        const label = d.net > 0 ? `+${d.net}` : `${d.net}`;
+        statsHtml += `<div class="stat-row">
+          <span class="stat-name">${escHtml(d.name)}</span>
+          <div style="flex:1;margin:0 0.5rem"><div class="stat-bar" style="width:${pct}%;background:${d.net > 0 ? '#f87171' : '#4ade80'}"></div></div>
+          <span class="stat-count ${dir}">${arrow} ${label}</span>
+        </div>`;
+      });
+      statsHtml += '</div>';
+    }
+    statsHtml += '</div>';
+  }
+  statsContainer.innerHTML = statsHtml;
+
+  // --- Entries list ---
+  container.innerHTML = entries.map(entry => {
+    const time = formatDateTime(entry.timestamp);
+    return `<div class="changelog-entry">
+      <span class="changelog-time">${time}</span>
+      <span class="changelog-badge badge-${entry.type}">${entry.type}</span>
+      <span class="changelog-msg">${escHtml(entry.message)}</span>
+    </div>`;
+  }).join('');
 }
 
 // Listen for real-time changes from other devices
@@ -1338,6 +1557,17 @@ function initFirebaseSync() {
     }
   });
 
+  changelogRef.on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+      changelog = toArray(data);
+      changelog.forEach(e => { if (e.type === 'move') e.type = 'edit'; });
+      localStorage.setItem(CHANGELOG_KEY, JSON.stringify(changelog));
+      const activeTab = document.querySelector('.tab-btn.active');
+      if (activeTab && activeTab.dataset.tab === 'changelog') renderChangelog();
+    }
+  });
+
   // On first connect, push local data if Firebase is empty
   playersRef.once('value', (snapshot) => {
     firebaseReady = true;
@@ -1346,6 +1576,7 @@ function initFirebaseSync() {
       // Firebase is empty — push local data up
       playersRef.set({ players, nextId });
       expertsRef.set(experts);
+      changelogRef.set(changelog);
     } else {
       // Firebase has data — use it
       players = toArray(data.players);
@@ -1428,6 +1659,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'consensus') renderConsensus();
     if (btn.dataset.tab === 'experts') renderExperts();
     if (btn.dataset.tab === 'positional') renderPositional();
+    if (btn.dataset.tab === 'changelog') renderChangelog();
   });
 });
 
@@ -1573,10 +1805,12 @@ function movePlayer(id, direction) {
   const newIdx = idx + direction;
   if (newIdx < 0 || newIdx >= players.length) return;
   pushUndo();
+  const oldRank = idx + 1;
   const [moved] = players.splice(idx, 1);
   moved.tier = players[Math.min(newIdx, players.length - 1)].tier;
   players.splice(newIdx, 0, moved);
   recalcRanks();
+  addChangelogEntry(`${moved.name} moved from #${oldRank} to #${moved.rank}`, 'edit');
   saveData();
   renderRankings();
 }
@@ -1620,12 +1854,16 @@ function onDrop(e) {
   const tgtIdx = players.findIndex(p => p.id === targetId);
   if (srcIdx === -1 || tgtIdx === -1) return;
 
+  const playerName = players[srcIdx].name;
+  const oldRank = players[srcIdx].rank;
+
   const [moved] = players.splice(srcIdx, 1);
   const newTgtIdx = players.findIndex(p => p.id === targetId);
   moved.tier = players[newTgtIdx].tier;
   players.splice(newTgtIdx, 0, moved);
 
   recalcRanks();
+  addChangelogEntry(`${playerName} moved from #${oldRank} to #${moved.rank}`, 'edit');
   saveData();
   renderRankings();
 }
@@ -1690,7 +1928,10 @@ function deletePlayer(id) {
   if (!p) return;
   if (!confirm(`Remove ${p.name} from your rankings?`)) return;
   pushUndo();
+  const deletedName = p.name;
+  const deletedRank = p.rank;
   players = players.filter(pl => pl.id !== id);
+  addChangelogEntry(`${deletedName} deleted from #${deletedRank}`, 'delete');
   recalcRanks();
   saveData();
   renderRankings();
@@ -1714,13 +1955,15 @@ document.getElementById('modal-save').addEventListener('click', () => {
 
   pushUndo();
 
-  let oldTier = 0;
+  let oldRank = 0, oldTier = 0, oldName = '';
   let newPlayer = null;
 
   if (editingPlayerId !== null) {
     const p = players.find(pl => pl.id === editingPlayerId);
     if (p) {
       oldTier = p.tier;
+      oldRank = p.rank;
+      oldName = p.name;
       p.name = name;
       p.pos = pos;
       p.tier = tier;
@@ -1764,6 +2007,19 @@ document.getElementById('modal-save').addEventListener('click', () => {
   }
 
   recalcRanks();
+
+  if (editingPlayerId !== null) {
+    const p = players.find(pl => pl.id === editingPlayerId);
+    if (p) {
+      const changes = [];
+      if (p.rank !== oldRank) changes.push(`rank #${oldRank} to #${p.rank}`);
+      if (tier !== oldTier) changes.push(`tier T${oldTier} to T${tier}`);
+      if (name !== oldName) changes.push(`name "${oldName}" to "${name}"`);
+      if (changes.length > 0) addChangelogEntry(`${name} edited: ${changes.join(', ')}`, 'edit');
+    }
+  } else if (newPlayer) {
+    addChangelogEntry(`${name} added at #${newPlayer.rank} (T${tier}, ${pos})`, 'add');
+  }
 
   saveData();
   renderRankings();
@@ -2263,7 +2519,23 @@ document.getElementById('btn-clear-experts').addEventListener('click', () => {
   renderExperts();
 });
 
+// Changelog filter buttons
+document.querySelectorAll('.changelog-type-filter').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const type = btn.dataset.type;
+    if (changelogTypeFilter.has(type)) { changelogTypeFilter.delete(type); btn.classList.remove('active'); }
+    else { changelogTypeFilter.add(type); btn.classList.add('active'); }
+    renderChangelog();
+  });
+});
 
+document.getElementById('btn-clear-changelog').addEventListener('click', () => {
+  if (!confirm('Clear all changelog entries? This cannot be undone.')) return;
+  changelog = [];
+  localStorage.setItem(CHANGELOG_KEY, JSON.stringify(changelog));
+  if (firebaseReady) changelogRef.set([]);
+  renderChangelog();
+});
 
 // ==========================================
 // SHARE RANKINGS
