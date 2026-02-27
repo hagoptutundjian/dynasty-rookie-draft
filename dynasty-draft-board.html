@@ -1573,11 +1573,17 @@ function movePlayer(id, direction) {
   const newIdx = idx + direction;
   if (newIdx < 0 || newIdx >= players.length) return;
   pushUndo();
+  const currentTier = players[idx].tier;
   const neighborTier = players[newIdx].tier;
-  const [moved] = players.splice(idx, 1);
-  moved.tier = neighborTier;
-  players.splice(newIdx, 0, moved);
-  recalcRanks();
+  if (currentTier !== neighborTier) {
+    // Crossing a tier boundary — change tier only, keep position
+    players[idx].tier = neighborTier;
+  } else {
+    // Same tier — swap positions
+    const [moved] = players.splice(idx, 1);
+    players.splice(newIdx, 0, moved);
+    recalcRanks();
+  }
   saveData();
   renderRankings();
 }
