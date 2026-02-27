@@ -973,6 +973,12 @@ body {
         <button class="filter-btn pos-te consensus-pos-filter" data-pos="TE">TE</button>
       </div>
       <div class="toolbar-group">
+        <span class="toolbar-label">Compare</span>
+        <select id="consensus-source" class="search-input" style="width:150px">
+          <option value="weighted">Weighted Consensus</option>
+        </select>
+      </div>
+      <div class="toolbar-group">
         <span class="toolbar-label">Sort</span>
         <select id="consensus-sort" class="search-input" style="width:130px">
           <option value="myrank">My Rank</option>
@@ -1237,6 +1243,7 @@ let searchQuery = '';
 let consensusPositions = new Set();
 let consensusSearch = '';
 let consensusSort = 'myrank';
+let consensusSource = 'weighted';
 
 // Drag state
 let dragSrcId = null;
@@ -2134,12 +2141,36 @@ document.querySelectorAll('.consensus-pos-filter').forEach(btn => {
 
 document.getElementById('consensus-search').addEventListener('input', (e) => { consensusSearch = e.target.value; renderConsensus(); });
 document.getElementById('consensus-sort').addEventListener('change', (e) => { consensusSort = e.target.value; renderConsensus(); });
+document.getElementById('consensus-source').addEventListener('change', (e) => { consensusSource = e.target.value; renderConsensus(); });
 
 function renderConsensus() {
   const container = document.getElementById('consensus-list');
+
+  // Populate the compare dropdown with experts
+  const sourceSelect = document.getElementById('consensus-source');
+  const currentVal = sourceSelect.value;
+  sourceSelect.innerHTML = '<option value="weighted">Weighted Consensus</option>' +
+    experts.map(ex => `<option value="${ex.id}">${escHtml(ex.name)}</option>`).join('');
+  // Restore selection if still valid
+  if (currentVal && sourceSelect.querySelector(`option[value="${currentVal}"]`)) {
+    sourceSelect.value = currentVal;
+    consensusSource = currentVal;
+  } else {
+    sourceSelect.value = 'weighted';
+    consensusSource = 'weighted';
+  }
+
   if (experts.length === 0) {
     container.innerHTML = `<div class="empty-state"><p>No expert rankings to compare.</p><p style="font-size:0.78rem;color:var(--text-muted)">Add experts in the "Manage Experts" tab first.</p></div>`;
     return;
+  }
+
+  // Get comparison rank based on selected source
+  function getCompareRank(playerId) {
+    if (consensusSource === 'weighted') return getConsensusRank(playerId);
+    const ex = experts.find(e => String(e.id) === String(consensusSource));
+    if (!ex || !ex.rankings[playerId]) return null;
+    return ex.rankings[playerId];
   }
 
   let filtered = players.filter(p => {
@@ -2149,7 +2180,7 @@ function renderConsensus() {
   });
 
   const consensusMap = {};
-  filtered.forEach(p => { consensusMap[p.id] = getConsensusRank(p.id); });
+  filtered.forEach(p => { consensusMap[p.id] = getCompareRank(p.id); });
 
   if (consensusSort === 'consensus') {
     filtered.sort((a, b) => {
@@ -2167,8 +2198,11 @@ function renderConsensus() {
     });
   }
 
+  const sourceLabel = consensusSource === 'weighted' ? 'Consensus' :
+    escHtml(experts.find(e => String(e.id) === String(consensusSource))?.name || 'Expert');
+
   let html = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
-    <div class="consensus-header"><div>Rank</div><div>Player</div><div>Pos</div><div>My Rank</div><div>Consensus</div><div>Diff</div></div>`;
+    <div class="consensus-header"><div>Rank</div><div>Player</div><div>Pos</div><div>My Rank</div><div>${sourceLabel}</div><div>Diff</div></div>`;
 
   filtered.forEach(p => {
     const consensus = consensusMap[p.id];
