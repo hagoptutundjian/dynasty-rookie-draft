@@ -418,6 +418,7 @@ body {
   outline: none;
   transition: border-color 0.2s, background 0.2s;
 }
+.player-note-input:not(:placeholder-shown) { color: #3b82f6; }
 .player-note-input::placeholder { color: var(--text-muted); opacity: 0.4; }
 .player-note-input:hover { border-color: var(--border); background: var(--surface-2); }
 .player-note-input:focus { border-color: var(--primary); background: var(--surface-2); color: var(--text); }
@@ -774,6 +775,10 @@ body {
   }
   .consensus-header { font-size: 0.6rem; }
   .pos-badge { font-size: 0.58rem; padding: 0.12rem 0.3rem; }
+  .modal-overlay { align-items: flex-start; padding: 1rem 0.5rem; }
+  .modal { width: 100%; max-width: 100%; padding: 1rem; max-height: calc(100vh - 2rem); }
+  .form-row { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+  .form-group input, .form-group select, .form-group textarea { font-size: 16px; }
 }
 .pos-column {
   background: var(--surface);
