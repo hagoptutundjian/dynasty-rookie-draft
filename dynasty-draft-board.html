@@ -372,7 +372,7 @@ body {
 .btn-edit-inline:hover { opacity: 1; }
 .draft-col {
   font-size: 0.78rem;
-  color: var(--primary-hover);
+  color: var(--text-muted);
   font-weight: 600;
   text-align: center;
 }
@@ -1525,8 +1525,8 @@ function renderRankings() {
               ${tagsHtml}
             </div>
             <div><span class="pos-badge pos-${p.pos}">${p.pos}</span></div>
-            <div class="draft-col">${escHtml(p.draftPick || '')}</div>
-            <div class="draft-col">${escHtml(p.draftTeam || '')}</div>
+            <div class="draft-col"${p.draftPick ? ` style="color:${draftRoundColor(p.draftPick)}"` : ''}>${escHtml(p.draftPick || '')}</div>
+            <div class="draft-col"${p.draftPick ? ` style="color:${draftRoundColor(p.draftPick)}"` : ''}>${escHtml(p.draftTeam || '')}</div>
             <div><input type="text" class="player-note-input" value="${escAttr(p.notes || '')}" placeholder="Add note..." data-id="${p.id}" onchange="updateNote(${p.id}, this.value)" onclick="event.stopPropagation()" onmousedown="this.closest('.player-row').setAttribute('draggable','false')" onblur="this.closest('.player-row').setAttribute('draggable','true')"></div>
             <div class="player-actions">
               <button class="btn-icon delete" onclick="deletePlayer(${p.id})" title="Delete">&#10005;</button>
@@ -1658,6 +1658,16 @@ function onDrop(e) {
 
 function recalcRanks() {
   players.forEach((p, i) => p.rank = i + 1);
+}
+
+function draftRoundColor(pick) {
+  const n = parseInt(pick);
+  if (!n || n < 1) return '';
+  if (n <= 32) return '#22c55e';
+  if (n <= 64) return '#3b82f6';
+  if (n <= 96) return '#a855f7';
+  if (n <= 128) return '#ef4444';
+  return '#6b7280';
 }
 
 function formatRank(rank) {
