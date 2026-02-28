@@ -247,6 +247,20 @@ body {
 .btn-outline { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
 .btn-outline:hover { border-color: var(--text-muted); color: var(--text); }
 .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.72rem; }
+.share-group { display: inline-flex; align-items: center; gap: 0; }
+.share-group .btn { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; }
+.share-select {
+  padding: 0.45rem 0.3rem;
+  font-size: 0.75rem;
+  font-family: var(--font);
+  border: 1px solid var(--border);
+  border-top-right-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  outline: none;
+  cursor: pointer;
+}
 
 /* === TIER SECTIONS === */
 .tier-section {
@@ -947,7 +961,16 @@ body {
       <div class="toolbar-spacer"></div>
       <button class="btn btn-primary" id="btn-add-player">+ Add Player</button>
       <button class="btn btn-outline" id="btn-export">Export Excel</button>
-      <button class="btn btn-outline" id="btn-share" onclick="shareRankings()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>Share</button>
+      <div class="share-group">
+        <button class="btn btn-outline" id="btn-share" onclick="shareRankings()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>Share</button>
+        <select id="share-count" class="share-select">
+          <option value="12">Top 12</option>
+          <option value="24">Top 24</option>
+          <option value="36">Top 36</option>
+          <option value="48" selected>Top 48</option>
+          <option value="0">All</option>
+        </select>
+      </div>
       <button class="btn btn-outline" id="btn-undraft-all" onclick="undraftAll()" title="Clear all drafted marks">Undraft All</button>
     </div>
     <div id="rankings-list"></div>
@@ -2348,7 +2371,7 @@ document.getElementById('btn-clear-experts').addEventListener('click', () => {
 // ==========================================
 // SHARE RANKINGS
 // ==========================================
-function buildShareCard() {
+function buildShareCard(maxPlayers) {
   const card = document.createElement('div');
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   const bg = isDark ? '#0f1117' : '#f1f5f9';
@@ -2357,10 +2380,10 @@ function buildShareCard() {
   const muted = isDark ? '#8b90a0' : '#64748b';
   const border = isDark ? '#2d3348' : '#e2e8f0';
   const posColors = { QB: isDark ? '#f87171' : '#dc2626', RB: isDark ? '#60a5fa' : '#2563eb', WR: isDark ? '#4ade80' : '#16a34a', TE: isDark ? '#fbbf24' : '#d97706' };
-  const tierColors = { 1:'#6366f1', 2:'#8b5cf6', 3:'#a855f7', 4:'#d946ef', 5:'#ec4899', 6:'#f43f5e', 7:'#ef4444', 8:'#f97316', 9:'#eab308', 10:'#84cc16', 11:'#6b7280' };
+  const tierColors = { 1:'#059669', 2:'#10b981', 3:'#34d399', 4:'#6ee7b7', 5:'#a7f3d0', 6:'#0d9488', 7:'#0f766e', 8:'#115e59', 9:'#134e4a', 10:'#1a3a38', 11:'#6b7280' };
 
   const showPlayers = players.filter(p => !p.drafted);
-  const limit = Math.min(showPlayers.length, 48);
+  const limit = maxPlayers > 0 ? Math.min(showPlayers.length, maxPlayers) : showPlayers.length;
   const displayPlayers = showPlayers.slice(0, limit);
   const remaining = showPlayers.length - limit;
   const date = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -2386,7 +2409,7 @@ function buildShareCard() {
 
   card.style.cssText = `position:fixed;left:-9999px;top:0;width:380px;font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:${bg};border-radius:12px;overflow:hidden;`;
   card.innerHTML = `
-    <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 30%,#4338ca 60%,#6366f1 100%);padding:14px 16px;text-align:center">
+    <div style="background:linear-gradient(135deg,#022c22 0%,#064e3b 30%,#047857 60%,#059669 100%);padding:14px 16px;text-align:center">
       <div style="font-size:16px;font-weight:800;color:white">Dynasty Rookie Draft Board</div>
       <div style="font-size:10px;color:rgba(255,255,255,0.7);margin-top:2px">${date}</div>
     </div>
@@ -2402,7 +2425,8 @@ async function shareRankings() {
   btn.innerHTML = 'Generating...';
   btn.disabled = true;
   try {
-    const card = buildShareCard();
+    const shareCount = parseInt(document.getElementById('share-count').value) || 0;
+    const card = buildShareCard(shareCount);
     document.body.appendChild(card);
     await new Promise(r => setTimeout(r, 100));
     const canvas = await html2canvas(card, { backgroundColor: null, scale: 2, useCORS: true, logging: false });
