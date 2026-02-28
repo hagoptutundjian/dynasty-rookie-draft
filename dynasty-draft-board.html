@@ -1805,11 +1805,16 @@ document.getElementById('modal-save').addEventListener('click', () => {
       p.notes = notes;
       p.tags = tags;
 
-      // Always reposition based on the rank entered in the modal
+      // Reposition based on rank, auto-adopt neighbor's tier unless tier was manually changed
       const currentIdx = players.indexOf(p);
       players.splice(currentIdx, 1);
       const targetIdx = Math.max(0, Math.min(rank - 1, players.length));
       players.splice(targetIdx, 0, p);
+      // If user didn't manually change the tier, adopt the tier of the neighbor at this position
+      if (tier === oldTier) {
+        const neighbor = players[Math.min(targetIdx + 1, players.length - 1)] || players[Math.max(targetIdx - 1, 0)];
+        if (neighbor && neighbor !== p) p.tier = neighbor.tier;
+      }
     }
   } else {
     newPlayer = { id: nextId++, rank: 0, tier, name, pos, draftPick, draftTeam, notes, tags, drafted: false };
