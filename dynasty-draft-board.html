@@ -1805,26 +1805,11 @@ document.getElementById('modal-save').addEventListener('click', () => {
       p.notes = notes;
       p.tags = tags;
 
-      if (tier !== oldTier) {
-        const currentIdx = players.indexOf(p);
-        players.splice(currentIdx, 1);
-        let insertIdx = players.length;
-        for (let i = players.length - 1; i >= 0; i--) {
-          if (players[i].tier === tier) { insertIdx = i + 1; break; }
-        }
-        if (!players.some(pl => pl.tier === tier)) {
-          insertIdx = players.findIndex(pl => pl.tier > tier);
-          if (insertIdx === -1) insertIdx = players.length;
-        }
-        players.splice(insertIdx, 0, p);
-      } else {
-        const currentIdx = players.indexOf(p);
-        const newIdx = Math.max(0, Math.min(rank - 1, players.length - 1));
-        if (currentIdx !== newIdx) {
-          players.splice(currentIdx, 1);
-          players.splice(newIdx, 0, p);
-        }
-      }
+      // Always reposition based on the rank entered in the modal
+      const currentIdx = players.indexOf(p);
+      players.splice(currentIdx, 1);
+      const targetIdx = Math.max(0, Math.min(rank - 1, players.length));
+      players.splice(targetIdx, 0, p);
     }
   } else {
     newPlayer = { id: nextId++, rank: 0, tier, name, pos, draftPick, draftTeam, notes, tags, drafted: false };
