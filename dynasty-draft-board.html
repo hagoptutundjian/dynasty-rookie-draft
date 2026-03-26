@@ -1930,13 +1930,9 @@ function renderExperts() {
 
   const sortedExperts = [...experts].sort((a, b) => (b.weight || 0) - (a.weight || 0));
   container.innerHTML = sortedExperts.map(ex => {
-    const sorted = [...players].sort((a, b) => {
-      const ra = ex.rankings[a.id], rb = ex.rankings[b.id];
-      if (ra == null && rb == null) return a.rank - b.rank;
-      if (ra == null) return 1;
-      if (rb == null) return -1;
-      return ra - rb;
-    });
+    const sorted = [...players]
+      .filter(p => ex.rankings[p.id] != null && ex.rankings[p.id] > 0)
+      .sort((a, b) => ex.rankings[a.id] - ex.rankings[b.id]);
 
     return `
     <div class="expert-card" data-expert-id="${ex.id}">
@@ -2073,13 +2069,10 @@ function onExpertDrop(e) {
 }
 
 function getExpertSortedPlayerIds(ex) {
-  return [...players].sort((a, b) => {
-    const ra = ex.rankings[a.id], rb = ex.rankings[b.id];
-    if (ra == null && rb == null) return a.rank - b.rank;
-    if (ra == null) return 1;
-    if (rb == null) return -1;
-    return ra - rb;
-  }).map(p => p.id);
+  return [...players]
+    .filter(p => ex.rankings[p.id] != null && ex.rankings[p.id] > 0)
+    .sort((a, b) => ex.rankings[a.id] - ex.rankings[b.id])
+    .map(p => p.id);
 }
 
 function recalcExpertRanks(ex, orderedIds) {
