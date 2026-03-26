@@ -1969,6 +1969,7 @@ function renderExperts() {
               <span class="pos-badge pos-${p.pos}" style="font-size:0.58rem;padding:0.08rem 0.35rem">${p.pos}</span>
             </div>
           `).join('')}
+          <button class="expert-reset-btn" onclick="bulkUploadExpert(${ex.id})">Paste Rankings</button>
           <button class="expert-reset-btn" onclick="resetExpertToMyOrder(${ex.id})">Reset to My Order</button>
         </div>
       ` : ''}
@@ -2057,6 +2058,8 @@ function onExpertDrop(e) {
   const tgtIdx = orderedIds.indexOf(targetPlayerId);
   if (srcIdx === -1 || tgtIdx === -1) return;
 
+  const body = document.querySelector(`[data-expert-body="${targetExpertId}"]`);
+  const scrollTop = body ? body.scrollTop : 0;
   orderedIds.splice(srcIdx, 1);
   const newTgtIdx = orderedIds.indexOf(targetPlayerId);
   orderedIds.splice(newTgtIdx, 0, expertDragSrcPlayerId);
@@ -2065,6 +2068,8 @@ function onExpertDrop(e) {
   ex.lastUpdated = Date.now();
   saveData();
   renderExperts();
+  const newBody = document.querySelector(`[data-expert-body="${targetExpertId}"]`);
+  if (newBody) newBody.scrollTop = scrollTop;
 }
 
 function getExpertSortedPlayerIds(ex) {
@@ -2092,12 +2097,18 @@ function moveExpertPlayer(expertId, playerId, direction) {
   if (idx === -1) return;
   const newIdx = idx + direction;
   if (newIdx < 0 || newIdx >= orderedIds.length) return;
+  // Save scroll position before re-render
+  const body = document.querySelector(`[data-expert-body="${expertId}"]`);
+  const scrollTop = body ? body.scrollTop : 0;
   orderedIds.splice(idx, 1);
   orderedIds.splice(newIdx, 0, playerId);
   recalcExpertRanks(ex, orderedIds);
   ex.lastUpdated = Date.now();
   saveData();
   renderExperts();
+  // Restore scroll position after re-render
+  const newBody = document.querySelector(`[data-expert-body="${expertId}"]`);
+  if (newBody) newBody.scrollTop = scrollTop;
 }
 
 function resetExpertToMyOrder(expertId) {
@@ -2109,6 +2120,60 @@ function resetExpertToMyOrder(expertId) {
   ex.lastUpdated = Date.now();
   saveData();
   renderExperts();
+}
+
+function bulkUploadExpert(expertId) {
+  const ex = experts.find(e => e.id === expertId);
+  if (!ex) return;
+  const input = prompt(
+    `Paste ${ex.name}'s rankings — one player name per line, ranked #1 first.\n\n` +
+    `Names are fuzzy-matched to your board. Unmatched names are skipped.`
+  );
+  if (!input || !input.trim()) return;
+
+  const lines = input.trim().split('\n').map(l => l.replace(/^\d+[\.\)\-\s]+/, '').trim()).filter(Boolean);
+  const matched = [];
+  const unmatched = [];
+
+  lines.forEach(line => {
+    const lower = line.toLowerCase();
+    // Try exact match first, then includes, then last-name match
+    let p = players.find(pl => pl.name.toLowerCase() === lower);
+    if (!p) p = players.find(pl => pl.name.toLowerCase().includes(lower) || lower.includes(pl.name.toLowerCase()));
+    if (!p) {
+      const lastName = lower.split(/\s+/).pop();
+      if (lastName.length > 2) p = players.find(pl => pl.name.toLowerCase().split(/\s+/).pop() === lastName && !matched.includes(pl.id));
+    }
+    if (p && !matched.includes(p.id)) {
+      matched.push(p.id);
+    } else if (!p) {
+      unmatched.push(line);
+    }
+  });
+
+  if (matched.length === 0) {
+    alert('No player names matched your board. Check spelling and try again.');
+    return;
+  }
+
+  // Assign rankings: matched players get 1, 2, 3... Unranked players keep existing or get pushed after
+  ex.rankings = {};
+  matched.forEach((id, i) => { ex.rankings[id] = i + 1; });
+  // Players not in the pasted list get ranked after, in their current board order
+  let nextRank = matched.length + 1;
+  players.forEach(p => {
+    if (!matched.includes(p.id)) {
+      ex.rankings[p.id] = nextRank++;
+    }
+  });
+
+  ex.lastUpdated = Date.now();
+  saveData();
+  renderExperts();
+
+  let msg = `Imported ${matched.length} rankings for ${ex.name}.`;
+  if (unmatched.length > 0) msg += `\n\n${unmatched.length} names not matched:\n${unmatched.join('\n')}`;
+  alert(msg);
 }
 
 function formatDate(ts) {
