@@ -2135,14 +2135,47 @@ function bulkUploadExpert(expertId) {
   const matched = [];
   const unmatched = [];
 
+  // Fuzzy string similarity (Levenshtein-based, returns 0-1)
+  function similarity(a, b) {
+    a = a.toLowerCase(); b = b.toLowerCase();
+    if (a === b) return 1;
+    const lenA = a.length, lenB = b.length;
+    if (!lenA || !lenB) return 0;
+    const matrix = Array.from({ length: lenA + 1 }, (_, i) => {
+      const row = Array(lenB + 1);
+      row[0] = i;
+      return row;
+    });
+    for (let j = 0; j <= lenB; j++) matrix[0][j] = j;
+    for (let i = 1; i <= lenA; i++) {
+      for (let j = 1; j <= lenB; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        matrix[i][j] = Math.min(matrix[i - 1][j] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j - 1] + cost);
+      }
+    }
+    return 1 - matrix[lenA][lenB] / Math.max(lenA, lenB);
+  }
+
   lines.forEach(line => {
     const lower = line.toLowerCase();
-    // Try exact match first, then includes, then last-name match
-    let p = players.find(pl => pl.name.toLowerCase() === lower);
-    if (!p) p = players.find(pl => pl.name.toLowerCase().includes(lower) || lower.includes(pl.name.toLowerCase()));
+    // Try exact match first
+    let p = players.find(pl => pl.name.toLowerCase() === lower && !matched.includes(pl.id));
+    // Then substring match
+    if (!p) p = players.find(pl => !matched.includes(pl.id) && (pl.name.toLowerCase().includes(lower) || lower.includes(pl.name.toLowerCase())));
+    // Then last-name match
     if (!p) {
       const lastName = lower.split(/\s+/).pop();
       if (lastName.length > 2) p = players.find(pl => pl.name.toLowerCase().split(/\s+/).pop() === lastName && !matched.includes(pl.id));
+    }
+    // Fuzzy match — find the best similarity above 0.55 threshold
+    if (!p) {
+      let bestScore = 0, bestPlayer = null;
+      players.forEach(pl => {
+        if (matched.includes(pl.id)) return;
+        const score = similarity(lower, pl.name);
+        if (score > bestScore) { bestScore = score; bestPlayer = pl; }
+      });
+      if (bestScore >= 0.55) p = bestPlayer;
     }
     if (p && !matched.includes(p.id)) {
       matched.push(p.id);
@@ -2156,16 +2189,9 @@ function bulkUploadExpert(expertId) {
     return;
   }
 
-  // Assign rankings: matched players get 1, 2, 3... Unranked players keep existing or get pushed after
+  // Assign rankings: only matched players get ranked, everyone else is removed
   ex.rankings = {};
   matched.forEach((id, i) => { ex.rankings[id] = i + 1; });
-  // Players not in the pasted list get ranked after, in their current board order
-  let nextRank = matched.length + 1;
-  players.forEach(p => {
-    if (!matched.includes(p.id)) {
-      ex.rankings[p.id] = nextRank++;
-    }
-  });
 
   ex.lastUpdated = Date.now();
   saveData();
