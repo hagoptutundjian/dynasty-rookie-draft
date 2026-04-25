@@ -540,6 +540,24 @@ body {
 /* === DRAFTED STATE === */
 .player-row.drafted { opacity: 0.45; }
 .player-row.drafted .player-name { text-decoration: line-through; }
+.player-row.my-pick {
+  background: rgba(255, 215, 0, 0.08);
+  box-shadow: inset 4px 0 0 #FFD700;
+}
+[data-theme="light"] .player-row.my-pick { background: rgba(218, 165, 32, 0.12); box-shadow: inset 4px 0 0 #daa520; }
+.my-pick-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 0.1rem 0.35rem;
+  margin-left: 0.4rem;
+  border-radius: 4px;
+  background: #FFD700;
+  color: #1a1d27;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  vertical-align: middle;
+}
 .drafted-toggle {
   width: 18px; height: 18px;
   border-radius: 4px;
@@ -1048,6 +1066,7 @@ body {
           <option value="0">All</option>
         </select>
       </div>
+      <button class="btn btn-outline" id="btn-my-picks" onclick="openMyPicksModal()" title="Set or update your draft picks">&#9733; My Picks</button>
       <button class="btn btn-outline" id="btn-undraft-all" onclick="undraftAll()" title="Clear all drafted marks">Undraft All</button>
     </div>
     <div id="rankings-list"></div>
@@ -1221,6 +1240,24 @@ body {
   </div>
 </div>
 
+<!-- My Picks Modal -->
+<div class="modal-overlay" id="my-picks-modal">
+  <div class="modal">
+    <h3>My Draft Picks</h3>
+    <div class="form-group">
+      <label>Picks (comma-separated, round.pick format)</label>
+      <input type="text" id="my-picks-input" placeholder="e.g., 3.10, 4.03, 4.07">
+      <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.4rem">12 picks per round. Updates instantly when traded — just edit and save.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger btn-sm" id="my-picks-clear">Clear All</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-outline" id="my-picks-cancel">Cancel</button>
+      <button class="btn btn-primary" id="my-picks-save">Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ==========================================
 // DEFAULT DATA (from Excel)
@@ -1332,6 +1369,7 @@ const TAG_LABELS = {riser:'Riser',faller:'Faller',sleeper:'Sleeper',bust:'Bust R
 // ==========================================
 let players = [];
 let experts = [];
+let myPicks = []; // array of rank numbers, e.g. [34, 39, 43]
 let nextId = 100;
 let editingPlayerId = null;
 
@@ -1377,6 +1415,7 @@ let ignoreNextSync = false;
 // ==========================================
 const STORAGE_KEY = 'dynasty_draft_board_2026';
 const EXPERTS_KEY = 'dynasty_draft_experts_2026';
+const MY_PICKS_KEY = 'dynasty_draft_my_picks_2026';
 const THEME_KEY = 'dynasty_draft_theme';
 
 function ensurePlayerFields(p) {
@@ -1418,6 +1457,8 @@ function loadData() {
   }
   const expertsSaved = localStorage.getItem(EXPERTS_KEY);
   if (expertsSaved) experts = JSON.parse(expertsSaved);
+  const picksSaved = localStorage.getItem(MY_PICKS_KEY);
+  if (picksSaved) myPicks = JSON.parse(picksSaved);
   // Theme
   const theme = localStorage.getItem(THEME_KEY) || 'dark';
   document.documentElement.setAttribute('data-theme', theme);
@@ -1428,6 +1469,7 @@ function saveData() {
   // Save to localStorage (offline backup)
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ players, nextId }));
   localStorage.setItem(EXPERTS_KEY, JSON.stringify(experts));
+  localStorage.setItem(MY_PICKS_KEY, JSON.stringify(myPicks));
 
   // Save to Firebase (cloud sync)
   if (firebaseReady) {
@@ -1627,11 +1669,11 @@ function renderRankings() {
           const breakBtn = pIdx > 0 ? `<div class="tier-break-inserter" onclick="insertTierBreakBefore(${p.id})" title="Insert new tier here"></div>` : '';
           return `
           ${breakBtn}
-          <div class="player-row${p.drafted ? ' drafted' : ''}" draggable="true" data-id="${p.id}">
+          <div class="player-row${p.drafted ? ' drafted' : ''}${myPicks.includes(p.rank) ? ' my-pick' : ''}" draggable="true" data-id="${p.id}">
             <button class="drafted-toggle${p.drafted ? ' active' : ''}" onclick="event.stopPropagation();toggleDrafted(${p.id})" title="Mark as drafted">&#10003;</button>
             <div class="player-rank"><input type="number" class="rank-number" value="${p.rank}" min="1" data-id="${p.id}" onchange="updateRank(${p.id}, this.value)" onclick="event.stopPropagation();this.select()" onmousedown="this.closest('.player-row').setAttribute('draggable','false')" onblur="this.closest('.player-row').setAttribute('draggable','true')"><div class="move-arrows"><button class="move-btn" onclick="event.stopPropagation();movePlayer(${p.id},-1)" title="Move up">&#9650;</button><button class="move-btn" onclick="event.stopPropagation();movePlayer(${p.id},1)" title="Move down">&#9660;</button></div></div>
             <div class="player-name-col">
-              <div class="player-name">${escHtml(p.name)} <button class="btn-icon btn-edit-inline" onclick="editPlayer(${p.id})" title="Edit">&#9998;</button></div>
+              <div class="player-name">${escHtml(p.name)}${myPicks.includes(p.rank) ? `<span class="my-pick-badge" title="Your pick">${formatPickLabel(p.rank)}</span>` : ''} <button class="btn-icon btn-edit-inline" onclick="editPlayer(${p.id})" title="Edit">&#9998;</button></div>
               ${tagsHtml}
             </div>
             <div><span class="pos-badge pos-${p.pos}">${p.pos}</span></div>
@@ -1673,6 +1715,30 @@ function updateNote(id, value) {
   if (!p) return;
   p.notes = value.trim();
   saveData();
+}
+
+// Convert a "round.pick" string (e.g. "3.10") to a numeric overall rank
+function pickStringToRank(str) {
+  const m = String(str).trim().match(/^(\d+)\.(\d+)$/);
+  if (!m) return null;
+  const round = parseInt(m[1]);
+  const pick = parseInt(m[2]);
+  if (round < 1 || pick < 1 || pick > 12) return null;
+  return (round - 1) * 12 + pick;
+}
+
+function formatPickLabel(rank) {
+  if (!rank || rank < 1) return '';
+  const round = Math.ceil(rank / 12);
+  const pick = rank - (round - 1) * 12;
+  return `${round}.${String(pick).padStart(2, '0')}`;
+}
+
+function openMyPicksModal() {
+  const input = document.getElementById('my-picks-input');
+  input.value = myPicks.map(r => formatPickLabel(r)).join(', ');
+  document.getElementById('my-picks-modal').classList.add('active');
+  setTimeout(() => input.focus(), 50);
 }
 
 function updateRank(id, value) {
@@ -2066,6 +2132,41 @@ document.getElementById('expert-save').addEventListener('click', () => {
   saveData();
   renderExperts();
   document.getElementById('expert-modal').classList.remove('active');
+});
+
+// My Picks modal handlers
+document.getElementById('my-picks-cancel').addEventListener('click', () => {
+  document.getElementById('my-picks-modal').classList.remove('active');
+});
+document.getElementById('my-picks-clear').addEventListener('click', () => {
+  if (!confirm('Clear all your picks?')) return;
+  myPicks = [];
+  saveData();
+  renderRankings();
+  document.getElementById('my-picks-modal').classList.remove('active');
+});
+document.getElementById('my-picks-save').addEventListener('click', () => {
+  const raw = document.getElementById('my-picks-input').value.trim();
+  if (!raw) {
+    myPicks = [];
+  } else {
+    const tokens = raw.split(/[,\s]+/).filter(Boolean);
+    const ranks = [];
+    const invalid = [];
+    tokens.forEach(t => {
+      const r = pickStringToRank(t);
+      if (r) ranks.push(r);
+      else invalid.push(t);
+    });
+    if (invalid.length > 0) {
+      alert(`Could not parse: ${invalid.join(', ')}\nUse round.pick format like "3.10" or "4.03"`);
+      return;
+    }
+    myPicks = [...new Set(ranks)].sort((a, b) => a - b);
+  }
+  saveData();
+  renderRankings();
+  document.getElementById('my-picks-modal').classList.remove('active');
 });
 
 function renderExperts() {
