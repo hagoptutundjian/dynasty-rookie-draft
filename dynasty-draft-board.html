@@ -227,6 +227,31 @@ body {
 }
 .search-input:focus { border-color: var(--primary); }
 .search-input::placeholder { color: var(--text-muted); }
+.search-wrap { position: relative; display: inline-flex; align-items: center; }
+.search-wrap .search-input { padding-right: 1.8rem; }
+.search-clear {
+  position: absolute;
+  right: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--text-muted);
+  color: var(--surface);
+  border: none;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-weight: 700;
+  transition: background 0.15s;
+}
+.search-wrap.has-value .search-clear { display: flex; }
+.search-clear:hover { background: var(--text); }
 
 .filter-btn {
   padding: 0.35rem 0.75rem;
@@ -1042,10 +1067,16 @@ body {
   <div id="tab-rankings" class="tab-content active">
     <div class="toolbar toolbar-filters">
       <div class="toolbar-group">
-        <input type="text" id="search-input" class="search-input" placeholder="&#128269; Player name...">
+        <div class="search-wrap">
+          <input type="text" id="search-input" class="search-input" placeholder="&#128269; Player name...">
+          <button class="search-clear" type="button" onclick="clearSearchInput('search-input', 'searchQuery')" aria-label="Clear">&times;</button>
+        </div>
       </div>
       <div class="toolbar-group">
-        <input type="text" id="team-filter-input" class="search-input" placeholder="&#127944; NFL team..." style="width:140px">
+        <div class="search-wrap">
+          <input type="text" id="team-filter-input" class="search-input" placeholder="&#127944; NFL team..." style="width:140px">
+          <button class="search-clear" type="button" onclick="clearSearchInput('team-filter-input', 'teamQuery')" aria-label="Clear">&times;</button>
+        </div>
       </div>
       <div class="toolbar-group toolbar-pos-group">
         <button class="filter-btn pos-qb" data-pos="QB">QB</button>
@@ -1092,8 +1123,8 @@ body {
         </select>
       </div>
       <div class="toolbar-spacer"></div>
-      <button class="btn btn-outline btn-sm" id="btn-export">Export</button>
-      <button class="btn btn-outline btn-sm" id="btn-undraft-all" onclick="undraftAll()" title="Clear all drafted marks">Undraft All</button>
+      <button class="btn btn-outline" id="btn-export">Export</button>
+      <button class="btn btn-outline" id="btn-undraft-all" onclick="undraftAll()" title="Clear all drafted marks">Undraft All</button>
     </div>
     <div id="rankings-list"></div>
   </div>
@@ -1687,6 +1718,7 @@ function clearFilters() {
   document.getElementById('tag-filter').value = '';
   document.getElementById('round-filter').value = '';
   document.querySelectorAll('#tab-rankings .filter-btn[data-pos]').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.search-wrap').forEach(w => w.classList.remove('has-value'));
   renderRankings();
 }
 
@@ -2028,8 +2060,26 @@ document.querySelectorAll('#tab-rankings .filter-btn[data-pos]').forEach(btn => 
 
 document.getElementById('tag-filter').addEventListener('change', (e) => { activeTag = e.target.value; renderRankings(); });
 document.getElementById('round-filter').addEventListener('change', (e) => { activeRound = e.target.value; renderRankings(); });
-document.getElementById('search-input').addEventListener('input', (e) => { searchQuery = e.target.value; renderRankings(); });
-document.getElementById('team-filter-input').addEventListener('input', (e) => { teamQuery = e.target.value; renderRankings(); });
+document.getElementById('search-input').addEventListener('input', (e) => {
+  searchQuery = e.target.value;
+  e.target.closest('.search-wrap').classList.toggle('has-value', !!e.target.value);
+  renderRankings();
+});
+document.getElementById('team-filter-input').addEventListener('input', (e) => {
+  teamQuery = e.target.value;
+  e.target.closest('.search-wrap').classList.toggle('has-value', !!e.target.value);
+  renderRankings();
+});
+
+function clearSearchInput(inputId, varName) {
+  const inp = document.getElementById(inputId);
+  inp.value = '';
+  inp.closest('.search-wrap').classList.remove('has-value');
+  if (varName === 'searchQuery') searchQuery = '';
+  if (varName === 'teamQuery') teamQuery = '';
+  renderRankings();
+  inp.focus();
+}
 
 // ==========================================
 // ADD / EDIT / DELETE
@@ -2808,16 +2858,19 @@ function buildShareCard(maxPlayers) {
   const remaining = showPlayers.length - limit;
   const date = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
-  let currentTier = null;
+  let currentSection = null;
   let rowsHtml = '';
   displayPlayers.forEach(p => {
-    if (p.tier !== currentTier) {
-      currentTier = p.tier;
-      const tc = tierColors[p.tier] || '#6b7280';
-      rowsHtml += `<div style="padding:4px 12px;font-size:10px;font-weight:700;color:white;background:${tc};text-transform:uppercase;letter-spacing:0.05em">Tier ${p.tier}</div>`;
+    // Group rank 49+ as "Waiver", otherwise group by tier
+    const sectionKey = p.rank >= 49 ? 'waiver' : `tier-${p.tier}`;
+    if (sectionKey !== currentSection) {
+      currentSection = sectionKey;
+      const tc = sectionKey === 'waiver' ? '#6b7280' : (tierColors[p.tier] || '#6b7280');
+      const label = sectionKey === 'waiver' ? 'Waiver' : `Tier ${p.tier}`;
+      rowsHtml += `<div style="padding:4px 12px;font-size:10px;font-weight:700;color:white;background:${tc};text-transform:uppercase;letter-spacing:0.05em">${label}</div>`;
     }
     const pc = posColors[p.pos] || muted;
-    rowsHtml += `<div style="display:grid;grid-template-columns:30px 1fr 36px;align-items:center;padding:3px 12px;border-bottom:1px solid ${border};font-size:12px;gap:6px">
+    rowsHtml += `<div style="display:grid;grid-template-columns:36px 1fr 36px;align-items:center;padding:3px 12px;border-bottom:1px solid ${border};font-size:12px;gap:6px">
       <span style="font-weight:700;color:${muted};text-align:right">${p.rank}</span>
       <span style="font-weight:600;color:${text}">${escHtml(p.name)}</span>
       <span style="font-size:10px;font-weight:700;color:${pc}">${p.pos}</span>
