@@ -287,6 +287,21 @@ body {
   pointer-events: none;
 }
 .tier-break-inserter:hover::after { opacity: 1; }
+.tier-merge-btn {
+  margin-left: auto;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: white;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  transition: background 0.15s;
+}
+.tier-merge-btn:hover { background: rgba(255,255,255,0.3); }
 .tier-section {
   margin-bottom: 1.25rem;
   border-radius: var(--radius);
@@ -1561,11 +1576,12 @@ function renderRankings() {
     return;
   }
 
-  container.innerHTML = tiers.map(({ tier, players: tp }) => `
+  container.innerHTML = tiers.map(({ tier, players: tp }, tIdx) => `
     <div class="tier-section tier-${tier}" data-tier="${tier}">
       <div class="tier-header">
         Tier ${tier}
         <span class="tier-count">${tp.length} player${tp.length !== 1 ? 's' : ''}</span>
+        ${tIdx > 0 ? `<button class="tier-merge-btn" onclick="mergeTierUp(${tier})" title="Merge into tier above">&#8593; Merge up</button>` : ''}
       </div>
       <div class="tier-body">
         ${tp.map((p, pIdx) => {
@@ -1724,6 +1740,19 @@ function insertTierBreakBefore(playerId) {
   // Increment tier for this player and everyone below by 1
   for (let i = idx; i < players.length; i++) {
     players[i].tier = (players[i].tier || 1) + 1;
+  }
+  saveData();
+  renderRankings();
+}
+
+function mergeTierUp(tier) {
+  // Find the first player in this tier
+  const idx = players.findIndex(p => p.tier === tier);
+  if (idx < 1) return;
+  pushUndo();
+  // Decrement tier for this player and everyone below by 1
+  for (let i = idx; i < players.length; i++) {
+    players[i].tier = Math.max(1, (players[i].tier || 1) - 1);
   }
   saveData();
   renderRankings();
