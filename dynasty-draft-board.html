@@ -1722,7 +1722,21 @@ function clearFilters() {
   renderRankings();
 }
 
+function normalizeTiers() {
+  // Renumber tiers across the full player list so they start from 1 and are sequential
+  const uniqueTiers = [...new Set(players.map(p => p.tier))].sort((a, b) => a - b);
+  if (uniqueTiers.length === 0) return false;
+  const tierMap = {};
+  uniqueTiers.forEach((t, i) => { tierMap[t] = i + 1; });
+  let changed = false;
+  players.forEach(p => {
+    if (p.tier !== tierMap[p.tier]) { p.tier = tierMap[p.tier]; changed = true; }
+  });
+  return changed;
+}
+
 function getTiers(playerList) {
+  normalizeTiers();
   const tiers = {};
   const waiver = [];
   playerList.forEach(p => {
