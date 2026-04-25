@@ -390,6 +390,7 @@ body {
   font-weight: 600;
   text-align: center;
 }
+.draft-col.team { text-align: left; }
 .player-tags { display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 2px; }
 .tag {
   font-size: 0.6rem;
@@ -1556,7 +1557,7 @@ function renderRankings() {
             </div>
             <div><span class="pos-badge pos-${p.pos}">${p.pos}</span></div>
             <div class="draft-col"${p.draftPick ? ` style="color:${draftRoundColor(p.draftPick)}"` : ''}>${escHtml(p.draftPick || '')}</div>
-            <div class="draft-col"${p.draftPick ? ` style="color:${draftRoundColor(p.draftPick)}"` : ''}>${escHtml(p.draftTeam || '')}</div>
+            <div class="draft-col team"${p.draftPick ? ` style="color:${draftRoundColor(p.draftPick)}"` : ''}>${escHtml(p.draftTeam || '')}</div>
             <div><input type="text" class="player-note-input" value="${escAttr(p.notes || '')}" placeholder="Add note..." data-id="${p.id}" onchange="updateNote(${p.id}, this.value)" onclick="event.stopPropagation()" onmousedown="this.closest('.player-row').setAttribute('draggable','false')" onblur="this.closest('.player-row').setAttribute('draggable','true')"></div>
             <div class="player-actions">
               <button class="btn-icon delete" onclick="deletePlayer(${p.id})" title="Delete">&#10005;</button>
@@ -1695,7 +1696,7 @@ function draftRoundColor(pick) {
   if (!n || n < 1) return '';
   if (n <= 32) return '#22c55e';
   if (n <= 64) return '#3b82f6';
-  if (n <= 96) return '#a855f7';
+  if (n <= 96) return '#eab308';
   if (n <= 128) return '#ef4444';
   return '#6b7280';
 }
@@ -1817,16 +1818,10 @@ document.getElementById('modal-save').addEventListener('click', () => {
       }
     }
   } else {
-    newPlayer = { id: nextId++, rank: 0, tier, name, pos, draftPick, draftTeam, notes, tags, drafted: false };
-    let insertIdx = players.length;
-    for (let i = players.length - 1; i >= 0; i--) {
-      if (players[i].tier === tier) { insertIdx = i + 1; break; }
-    }
-    if (!players.some(pl => pl.tier === tier)) {
-      insertIdx = players.findIndex(pl => pl.tier > tier);
-      if (insertIdx === -1) insertIdx = players.length;
-    }
-    players.splice(insertIdx, 0, newPlayer);
+    // Always add new players at the bottom of the list, adopting the last player's tier (or use selected tier if list is empty)
+    const bottomTier = players.length > 0 ? players[players.length - 1].tier : tier;
+    newPlayer = { id: nextId++, rank: 0, tier: bottomTier, name, pos, draftPick, draftTeam, notes, tags, drafted: false };
+    players.push(newPlayer);
   }
 
   recalcRanks();
