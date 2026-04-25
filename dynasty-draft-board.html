@@ -884,6 +884,7 @@ body {
   }
   .consensus-header { font-size: 0.6rem; }
   .pos-badge { font-size: 0.58rem; padding: 0.12rem 0.3rem; }
+  .my-pick-badge { font-size: 0.5rem; padding: 0.05rem 0.25rem; margin-left: 0.25rem; }
   .modal-overlay { align-items: flex-start; padding: 1rem 0.5rem; }
   .modal { width: 100%; max-width: 100%; padding: 1rem; max-height: calc(100vh - 2rem); }
   .form-row { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
@@ -1246,7 +1247,7 @@ body {
     <h3>My Draft Picks</h3>
     <div class="form-group">
       <label>Picks (comma-separated, round.pick format)</label>
-      <input type="text" id="my-picks-input" placeholder="e.g., 3.10, 4.03, 4.07">
+      <input type="text" id="my-picks-input" placeholder="e.g., 3.10, 4.03, 4.07" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text">
       <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.4rem">12 picks per round. Highlighted players update as you mark drafts — predicting who falls to you. Edit anytime if a pick is traded.</div>
     </div>
     <div class="modal-actions">
@@ -1476,6 +1477,7 @@ function saveData() {
     ignoreNextSync = true;
     playersRef.set({ players, nextId });
     expertsRef.set(experts);
+    db.ref('myPicks').set(myPicks);
   }
 }
 
@@ -1504,6 +1506,16 @@ function initFirebaseSync() {
         if (activeTab.dataset.tab === 'experts') renderExperts();
         if (activeTab.dataset.tab === 'consensus') renderConsensus();
       }
+    }
+  });
+
+  db.ref('myPicks').on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (Array.isArray(data)) {
+      myPicks = data;
+      localStorage.setItem(MY_PICKS_KEY, JSON.stringify(myPicks));
+      const activeTab = document.querySelector('.tab-btn.active');
+      if (!activeTab || activeTab.dataset.tab === 'rankings') renderRankings();
     }
   });
 
