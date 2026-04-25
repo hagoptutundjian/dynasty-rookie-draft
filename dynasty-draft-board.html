@@ -430,6 +430,24 @@ body {
   text-align: center;
 }
 .draft-col.team { text-align: left; padding-left: 0.4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft-input {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: var(--font);
+  padding: 0.25rem 0.3rem;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+.draft-input.pick { text-align: center; }
+.draft-input.team { text-align: left; text-transform: uppercase; }
+.draft-input::placeholder { color: var(--text-muted); opacity: 0.3; }
+.draft-input:hover { border-color: var(--border); background: var(--surface-2); }
+.draft-input:focus { border-color: var(--primary); background: var(--surface-2); }
 .player-tags { display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 2px; }
 .tag {
   font-size: 0.6rem;
@@ -1598,8 +1616,8 @@ function renderRankings() {
               ${tagsHtml}
             </div>
             <div><span class="pos-badge pos-${p.pos}">${p.pos}</span></div>
-            <div class="draft-col"${p.draftPick ? ` style="color:${draftRoundColor(p.draftPick)}"` : ''}>${escHtml(p.draftPick || '')}</div>
-            <div class="draft-col team"${p.draftPick ? ` style="color:${draftRoundColor(p.draftPick)}"` : ''}>${escHtml(p.draftTeam || '')}</div>
+            <input type="text" class="draft-input pick" value="${escAttr(p.draftPick || '')}" placeholder="#" data-id="${p.id}" ${p.draftPick ? `style="color:${draftRoundColor(p.draftPick)}"` : ''} onchange="updatePick(${p.id}, this.value)" onclick="event.stopPropagation()" onmousedown="this.closest('.player-row').setAttribute('draggable','false')" onblur="this.closest('.player-row').setAttribute('draggable','true')">
+            <input type="text" class="draft-input team" value="${escAttr(p.draftTeam || '')}" placeholder="Team" data-id="${p.id}" ${p.draftPick ? `style="color:${draftRoundColor(p.draftPick)}"` : ''} onchange="updateTeam(${p.id}, this.value)" onclick="event.stopPropagation()" onmousedown="this.closest('.player-row').setAttribute('draggable','false')" onblur="this.closest('.player-row').setAttribute('draggable','true')">
             <div><input type="text" class="player-note-input" value="${escAttr(p.notes || '')}" placeholder="Add note..." data-id="${p.id}" onchange="updateNote(${p.id}, this.value)" onclick="event.stopPropagation()" onmousedown="this.closest('.player-row').setAttribute('draggable','false')" onblur="this.closest('.player-row').setAttribute('draggable','true')"></div>
             <div class="player-actions">
               <button class="btn-icon delete" onclick="deletePlayer(${p.id})" title="Delete">&#10005;</button>
@@ -1636,6 +1654,22 @@ function updateNote(id, value) {
   if (!p) return;
   p.notes = value.trim();
   saveData();
+}
+
+function updatePick(id, value) {
+  const p = players.find(pl => pl.id === id);
+  if (!p) return;
+  p.draftPick = value.trim();
+  saveData();
+  renderRankings();
+}
+
+function updateTeam(id, value) {
+  const p = players.find(pl => pl.id === id);
+  if (!p) return;
+  p.draftTeam = value.trim().toUpperCase();
+  saveData();
+  renderRankings();
 }
 
 function toggleDrafted(id) {
@@ -1761,10 +1795,10 @@ function mergeTierUp(tier) {
 function draftRoundColor(pick) {
   const n = parseInt(pick);
   if (!n || n < 1) return '';
-  if (n <= 32) return '#22c55e';
-  if (n <= 64) return '#3b82f6';
-  if (n <= 96) return '#eab308';
-  if (n <= 128) return '#ef4444';
+  if (n <= 32) return '#059669';
+  if (n <= 64) return '#0891b2';
+  if (n <= 96) return '#d97706';
+  if (n <= 128) return '#e11d48';
   return '#6b7280';
 }
 
