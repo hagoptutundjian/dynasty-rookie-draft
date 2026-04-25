@@ -884,7 +884,7 @@ body {
   }
   .consensus-header { font-size: 0.6rem; }
   .pos-badge { font-size: 0.58rem; padding: 0.12rem 0.3rem; }
-  .my-pick-badge { font-size: 0.5rem; padding: 0.05rem 0.25rem; margin-left: 0.25rem; }
+  .my-pick-badge { font-size: 0.42rem; padding: 0.04rem 0.2rem; margin-left: 0.2rem; }
   .modal-overlay { align-items: flex-start; padding: 1rem 0.5rem; }
   .modal { width: 100%; max-width: 100%; padding: 1rem; max-height: calc(100vh - 2rem); }
   .form-row { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
@@ -1178,6 +1178,7 @@ body {
       <div class="form-group">
         <label>Position</label>
         <select id="modal-pos">
+          <option value="" disabled>Select...</option>
           <option value="QB">QB</option>
           <option value="RB">RB</option>
           <option value="WR">WR</option>
@@ -1988,7 +1989,7 @@ document.getElementById('btn-add-player').addEventListener('click', () => {
   editingPlayerId = null;
   document.getElementById('modal-title').textContent = 'Add Player';
   document.getElementById('modal-name').value = '';
-  document.getElementById('modal-pos').value = 'QB';
+  document.getElementById('modal-pos').value = '';
   document.getElementById('modal-tier').value = 5;
   document.getElementById('modal-rank').value = players.length + 1;
   document.getElementById('modal-draft-pick').value = '';
@@ -2042,6 +2043,7 @@ document.getElementById('modal-save').addEventListener('click', () => {
   const tags = ALL_TAGS.filter(t => document.getElementById('tag-' + t).checked);
 
   if (!name) { alert('Please enter a player name.'); return; }
+  if (!pos) { alert('Please select a position.'); return; }
 
   pushUndo();
 
