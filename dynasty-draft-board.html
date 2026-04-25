@@ -263,6 +263,30 @@ body {
 }
 
 /* === TIER SECTIONS === */
+.tier-break-inserter {
+  position: relative;
+  height: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.tier-break-inserter:hover { background: var(--primary); height: 18px; }
+.tier-break-inserter::after {
+  content: '+ Insert tier break';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.tier-break-inserter:hover::after { opacity: 1; }
 .tier-section {
   margin-bottom: 1.25rem;
   border-radius: var(--radius);
@@ -305,7 +329,7 @@ body {
 /* === PLAYER ROW === */
 .player-row {
   display: grid;
-  grid-template-columns: 26px 58px minmax(120px, 200px) auto 55px 50px 1fr 55px;
+  grid-template-columns: 26px 58px minmax(120px, 200px) auto 55px 65px 1fr 55px;
   align-items: center;
   padding: 0.5rem 1rem;
   border-bottom: 1px solid var(--border);
@@ -390,7 +414,7 @@ body {
   font-weight: 600;
   text-align: center;
 }
-.draft-col.team { text-align: left; }
+.draft-col.team { text-align: left; padding-left: 0.4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player-tags { display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 2px; }
 .tag {
   font-size: 0.6rem;
@@ -756,7 +780,7 @@ body {
     -webkit-overflow-scrolling: touch;
   }
   .player-row {
-    grid-template-columns: 26px 50px minmax(110px, 160px) auto 50px 50px minmax(100px, 1fr) 55px;
+    grid-template-columns: 26px 50px minmax(110px, 160px) auto 50px 60px minmax(100px, 1fr) 55px;
     min-width: 580px;
     padding: 0.4rem 0.5rem;
     gap: 0.35rem;
@@ -1544,10 +1568,12 @@ function renderRankings() {
         <span class="tier-count">${tp.length} player${tp.length !== 1 ? 's' : ''}</span>
       </div>
       <div class="tier-body">
-        ${tp.map(p => {
+        ${tp.map((p, pIdx) => {
           const tagsHtml = p.tags && p.tags.length > 0
             ? `<div class="player-tags">${p.tags.map(t => `<span class="tag tag-${t}">${TAG_LABELS[t] || t}</span>`).join('')}</div>` : '';
+          const breakBtn = pIdx > 0 ? `<div class="tier-break-inserter" onclick="insertTierBreakBefore(${p.id})" title="Insert new tier here"></div>` : '';
           return `
+          ${breakBtn}
           <div class="player-row${p.drafted ? ' drafted' : ''}" draggable="true" data-id="${p.id}">
             <button class="drafted-toggle${p.drafted ? ' active' : ''}" onclick="event.stopPropagation();toggleDrafted(${p.id})" title="Mark as drafted">&#10003;</button>
             <div class="player-rank"><span class="rank-number">${p.rank}</span><div class="move-arrows"><button class="move-btn" onclick="event.stopPropagation();movePlayer(${p.id},-1)" title="Move up">&#9650;</button><button class="move-btn" onclick="event.stopPropagation();movePlayer(${p.id},1)" title="Move down">&#9660;</button></div></div>
@@ -1689,6 +1715,18 @@ function onDrop(e) {
 
 function recalcRanks() {
   players.forEach((p, i) => p.rank = i + 1);
+}
+
+function insertTierBreakBefore(playerId) {
+  const idx = players.findIndex(p => p.id === playerId);
+  if (idx < 1) return;
+  pushUndo();
+  // Increment tier for this player and everyone below by 1
+  for (let i = idx; i < players.length; i++) {
+    players[i].tier = (players[i].tier || 1) + 1;
+  }
+  saveData();
+  renderRankings();
 }
 
 function draftRoundColor(pick) {
