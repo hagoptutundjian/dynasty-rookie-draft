@@ -340,6 +340,7 @@ body {
 .tier-9 .tier-header { background: #134e4a; }
 .tier-10 .tier-header { background: #1a3a38; }
 .tier-11 .tier-header { background: #6b7280; }
+.tier-waiver .tier-header { background: #6b7280; }
 
 /* === PLAYER ROW === */
 .player-row {
@@ -1651,11 +1652,18 @@ function getFilteredPlayers() {
 
 function getTiers(playerList) {
   const tiers = {};
+  const waiver = [];
   playerList.forEach(p => {
-    if (!tiers[p.tier]) tiers[p.tier] = [];
-    tiers[p.tier].push(p);
+    if (p.rank >= 49) {
+      waiver.push(p);
+    } else {
+      if (!tiers[p.tier]) tiers[p.tier] = [];
+      tiers[p.tier].push(p);
+    }
   });
-  return Object.keys(tiers).sort((a, b) => a - b).map(t => ({ tier: parseInt(t), players: tiers[t] }));
+  const result = Object.keys(tiers).sort((a, b) => a - b).map(t => ({ tier: parseInt(t), players: tiers[t] }));
+  if (waiver.length > 0) result.push({ tier: 'waiver', players: waiver });
+  return result;
 }
 
 function renderRankings() {
@@ -1672,9 +1680,9 @@ function renderRankings() {
   container.innerHTML = tiers.map(({ tier, players: tp }, tIdx) => `
     <div class="tier-section tier-${tier}" data-tier="${tier}">
       <div class="tier-header">
-        Tier ${tier}
+        ${tier === 'waiver' ? 'Waiver' : `Tier ${tier}`}
         <span class="tier-count">${tp.length} player${tp.length !== 1 ? 's' : ''}</span>
-        ${tIdx > 0 ? `<button class="tier-merge-btn" onclick="mergeTierUp(${tier})" title="Merge into tier above">&#8593; Merge up</button>` : ''}
+        ${tIdx > 0 && tier !== 'waiver' ? `<button class="tier-merge-btn" onclick="mergeTierUp(${tier})" title="Merge into tier above">&#8593; Merge up</button>` : ''}
       </div>
       <div class="tier-body">
         ${tp.map((p, pIdx) => {
