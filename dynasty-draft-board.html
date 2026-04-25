@@ -369,7 +369,26 @@ body {
   gap: 0;
   position: relative;
 }
-.rank-number { min-width: 22px; }
+.rank-number {
+  min-width: 30px;
+  width: 38px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 1rem;
+  font-weight: 800;
+  font-family: var(--font);
+  text-align: center;
+  padding: 0.15rem 0.2rem;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+  -moz-appearance: textfield;
+}
+.rank-number::-webkit-outer-spin-button,
+.rank-number::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.rank-number:hover { border-color: var(--border); background: var(--surface-2); }
+.rank-number:focus { border-color: var(--primary); background: var(--surface-2); color: var(--text); }
 .move-arrows {
   display: flex;
   flex-direction: column;
@@ -1610,7 +1629,7 @@ function renderRankings() {
           ${breakBtn}
           <div class="player-row${p.drafted ? ' drafted' : ''}" draggable="true" data-id="${p.id}">
             <button class="drafted-toggle${p.drafted ? ' active' : ''}" onclick="event.stopPropagation();toggleDrafted(${p.id})" title="Mark as drafted">&#10003;</button>
-            <div class="player-rank"><span class="rank-number">${p.rank}</span><div class="move-arrows"><button class="move-btn" onclick="event.stopPropagation();movePlayer(${p.id},-1)" title="Move up">&#9650;</button><button class="move-btn" onclick="event.stopPropagation();movePlayer(${p.id},1)" title="Move down">&#9660;</button></div></div>
+            <div class="player-rank"><input type="number" class="rank-number" value="${p.rank}" min="1" data-id="${p.id}" onchange="updateRank(${p.id}, this.value)" onclick="event.stopPropagation();this.select()" onmousedown="this.closest('.player-row').setAttribute('draggable','false')" onblur="this.closest('.player-row').setAttribute('draggable','true')"><div class="move-arrows"><button class="move-btn" onclick="event.stopPropagation();movePlayer(${p.id},-1)" title="Move up">&#9650;</button><button class="move-btn" onclick="event.stopPropagation();movePlayer(${p.id},1)" title="Move down">&#9660;</button></div></div>
             <div class="player-name-col">
               <div class="player-name">${escHtml(p.name)} <button class="btn-icon btn-edit-inline" onclick="editPlayer(${p.id})" title="Edit">&#9998;</button></div>
               ${tagsHtml}
@@ -1654,6 +1673,29 @@ function updateNote(id, value) {
   if (!p) return;
   p.notes = value.trim();
   saveData();
+}
+
+function updateRank(id, value) {
+  const newRank = parseInt(value);
+  if (!newRank || newRank < 1) { renderRankings(); return; }
+  const p = players.find(pl => pl.id === id);
+  if (!p) return;
+  if (p.rank === newRank) return;
+  pushUndo();
+  const currentIdx = players.indexOf(p);
+  players.splice(currentIdx, 1);
+  const targetIdx = Math.max(0, Math.min(newRank - 1, players.length));
+  players.splice(targetIdx, 0, p);
+  // Smart auto-tier from neighbors
+  const above = targetIdx > 0 ? players[targetIdx - 1] : null;
+  const below = targetIdx < players.length - 1 ? players[targetIdx + 1] : null;
+  if (above && below && above.tier === below.tier) p.tier = above.tier;
+  else if (above && below) p.tier = Math.min(above.tier, below.tier);
+  else if (above) p.tier = above.tier;
+  else if (below) p.tier = below.tier;
+  recalcRanks();
+  saveData();
+  renderRankings();
 }
 
 function updatePick(id, value) {
@@ -1912,10 +1954,21 @@ document.getElementById('modal-save').addEventListener('click', () => {
       players.splice(currentIdx, 1);
       const targetIdx = Math.max(0, Math.min(rank - 1, players.length));
       players.splice(targetIdx, 0, p);
-      // If user didn't manually change the tier, adopt the tier of the neighbor at this position
+      // If user didn't manually change the tier, infer the right tier from the neighbors
       if (tier === oldTier) {
-        const neighbor = players[Math.min(targetIdx + 1, players.length - 1)] || players[Math.max(targetIdx - 1, 0)];
-        if (neighbor && neighbor !== p) p.tier = neighbor.tier;
+        const above = targetIdx > 0 ? players[targetIdx - 1] : null;
+        const below = targetIdx < players.length - 1 ? players[targetIdx + 1] : null;
+        if (above && below && above.tier === below.tier) {
+          // Surrounded by same tier — clearly belongs there
+          p.tier = above.tier;
+        } else if (above && below) {
+          // At a tier boundary — pick the smaller (higher-ranked) tier since they moved toward it
+          p.tier = Math.min(above.tier, below.tier);
+        } else if (above) {
+          p.tier = above.tier;
+        } else if (below) {
+          p.tier = below.tier;
+        }
       }
     }
   } else {
