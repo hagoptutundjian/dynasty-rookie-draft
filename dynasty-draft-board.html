@@ -349,6 +349,16 @@ body {
   transition: background 0.15s;
 }
 .tier-merge-btn:hover { background: rgba(255,255,255,0.3); }
+.tier-label { outline: none; }
+.tier-label-edit {
+  cursor: text;
+  border-radius: 4px;
+  padding: 0 0.3rem;
+  margin-left: -0.3rem;
+  transition: background 0.15s;
+}
+.tier-label-edit:hover { background: rgba(255,255,255,0.15); }
+.tier-label-edit:focus { background: rgba(255,255,255,0.25); }
 .tier-section {
   margin-bottom: 1.25rem;
   border-radius: var(--radius);
@@ -1428,6 +1438,7 @@ const TAG_LABELS = {riser:'Riser',faller:'Faller',sleeper:'Sleeper',bust:'Bust R
 let players = [];
 let experts = [];
 let myPicks = []; // array of rank numbers, e.g. [34, 39, 43]
+let tierNames = {}; // { 1: "Elite", 2: "Studs", ... }
 let nextId = 100;
 let editingPlayerId = null;
 
@@ -1475,6 +1486,7 @@ let ignoreNextSync = false;
 const STORAGE_KEY = 'dynasty_draft_board_2026';
 const EXPERTS_KEY = 'dynasty_draft_experts_2026';
 const MY_PICKS_KEY = 'dynasty_draft_my_picks_2026';
+const TIER_NAMES_KEY = 'dynasty_draft_tier_names_2026';
 const THEME_KEY = 'dynasty_draft_theme';
 
 function ensurePlayerFields(p) {
@@ -1518,6 +1530,8 @@ function loadData() {
   if (expertsSaved) experts = JSON.parse(expertsSaved);
   const picksSaved = localStorage.getItem(MY_PICKS_KEY);
   if (picksSaved) myPicks = JSON.parse(picksSaved);
+  const tierNamesSaved = localStorage.getItem(TIER_NAMES_KEY);
+  if (tierNamesSaved) tierNames = JSON.parse(tierNamesSaved);
   // Theme
   const theme = localStorage.getItem(THEME_KEY) || 'dark';
   document.documentElement.setAttribute('data-theme', theme);
@@ -1529,6 +1543,7 @@ function saveData() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ players, nextId }));
   localStorage.setItem(EXPERTS_KEY, JSON.stringify(experts));
   localStorage.setItem(MY_PICKS_KEY, JSON.stringify(myPicks));
+  localStorage.setItem(TIER_NAMES_KEY, JSON.stringify(tierNames));
 
   // Save to Firebase (cloud sync)
   if (firebaseReady) {
@@ -1536,6 +1551,7 @@ function saveData() {
     playersRef.set({ players, nextId });
     expertsRef.set(experts);
     db.ref('myPicks').set(myPicks);
+    db.ref('tierNames').set(tierNames);
   }
 }
 
@@ -1572,6 +1588,16 @@ function initFirebaseSync() {
     if (Array.isArray(data)) {
       myPicks = data;
       localStorage.setItem(MY_PICKS_KEY, JSON.stringify(myPicks));
+      const activeTab = document.querySelector('.tab-btn.active');
+      if (!activeTab || activeTab.dataset.tab === 'rankings') renderRankings();
+    }
+  });
+
+  db.ref('tierNames').on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (data && typeof data === 'object') {
+      tierNames = data;
+      localStorage.setItem(TIER_NAMES_KEY, JSON.stringify(tierNames));
       const activeTab = document.querySelector('.tab-btn.active');
       if (!activeTab || activeTab.dataset.tab === 'rankings') renderRankings();
     }
@@ -1732,6 +1758,15 @@ function normalizeTiers() {
   players.forEach(p => {
     if (p.tier !== tierMap[p.tier]) { p.tier = tierMap[p.tier]; changed = true; }
   });
+  // Remap tierNames so they follow the renumbered tiers
+  if (Object.keys(tierNames).length > 0) {
+    const newNames = {};
+    Object.entries(tierNames).forEach(([t, name]) => {
+      const T = parseInt(t);
+      if (tierMap[T]) newNames[tierMap[T]] = name;
+    });
+    tierNames = newNames;
+  }
   return changed;
 }
 
@@ -1763,12 +1798,19 @@ function renderRankings() {
     return;
   }
 
-  container.innerHTML = tiers.map(({ tier, players: tp }, tIdx) => `
+  container.innerHTML = tiers.map(({ tier, players: tp }, tIdx) => {
+    const isWaiver = tier === 'waiver';
+    const customName = !isWaiver ? tierNames[tier] : null;
+    const defaultLabel = isWaiver ? 'Waiver' : `Tier ${tier}`;
+    const labelHtml = isWaiver
+      ? `<span class="tier-label">${defaultLabel}</span>`
+      : `<span class="tier-label tier-label-edit" contenteditable="true" data-tier="${tier}" data-default="${defaultLabel}" onblur="saveTierName(${tier}, this.innerText)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();} else if(event.key==='Escape'){this.innerText='${customName ? escAttr(customName) : defaultLabel}';this.blur();}" title="Click to rename tier">${escHtml(customName || defaultLabel)}</span>`;
+    return `
     <div class="tier-section tier-${tier}" data-tier="${tier}">
       <div class="tier-header">
-        ${tier === 'waiver' ? 'Waiver' : `Tier ${tier}`}
+        ${labelHtml}
         <span class="tier-count">${tp.length} player${tp.length !== 1 ? 's' : ''}</span>
-        ${tIdx > 0 && tier !== 'waiver' ? `<button class="tier-merge-btn" onclick="mergeTierUp(${tier})" title="Merge into tier above">&#8593; Merge up</button>` : ''}
+        ${tIdx > 0 && !isWaiver ? `<button class="tier-merge-btn" onclick="mergeTierUp(${tier})" title="Merge into tier above">&#8593; Merge up</button>` : ''}
       </div>
       <div class="tier-body">
         ${tp.map((p, pIdx) => {
@@ -1795,7 +1837,8 @@ function renderRankings() {
         }).join('')}
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   container.querySelectorAll('.player-row').forEach(row => {
     row.addEventListener('dragstart', onDragStart);
@@ -1931,6 +1974,10 @@ function toggleDrafted(id) {
 }
 
 function undraftAll() {
+  const draftedCount = players.filter(p => p.drafted).length;
+  if (draftedCount === 0) { alert('No players are marked as drafted.'); return; }
+  if (!confirm(`Clear drafted marks on ${draftedCount} player${draftedCount === 1 ? '' : 's'}? This cannot be undone except via the Undo button.`)) return;
+  pushUndo();
   players.forEach(p => p.drafted = false);
   saveData();
   renderRankings();
@@ -2019,9 +2066,30 @@ function insertTierBreakBefore(playerId) {
   const idx = players.findIndex(p => p.id === playerId);
   if (idx < 1) return;
   pushUndo();
+  const splitTier = players[idx].tier;
+  // Shift tier names: tiers > splitTier shift up by 1 to make room for the new tier
+  const newNames = {};
+  Object.entries(tierNames).forEach(([t, name]) => {
+    const T = parseInt(t);
+    if (T <= splitTier) newNames[T] = name; // top half keeps its name
+    else newNames[T + 1] = name; // shift up
+  });
+  tierNames = newNames;
   // Increment tier for this player and everyone below by 1
   for (let i = idx; i < players.length; i++) {
     players[i].tier = (players[i].tier || 1) + 1;
+  }
+  saveData();
+  renderRankings();
+}
+
+function saveTierName(tier, name) {
+  const trimmed = (name || '').trim();
+  const defaultLabel = `Tier ${tier}`;
+  if (!trimmed || trimmed === defaultLabel) {
+    delete tierNames[tier];
+  } else {
+    tierNames[tier] = trimmed;
   }
   saveData();
   renderRankings();
@@ -2032,6 +2100,15 @@ function mergeTierUp(tier) {
   const idx = players.findIndex(p => p.tier === tier);
   if (idx < 1) return;
   pushUndo();
+  // Adjust tier names: this tier's name is dropped, tiers > this shift down
+  const newNames = {};
+  Object.entries(tierNames).forEach(([t, name]) => {
+    const T = parseInt(t);
+    if (T < tier) newNames[T] = name;
+    else if (T === tier) { /* drop */ }
+    else newNames[T - 1] = name;
+  });
+  tierNames = newNames;
   // Decrement tier for this player and everyone below by 1
   for (let i = idx; i < players.length; i++) {
     players[i].tier = Math.max(1, (players[i].tier || 1) - 1);
