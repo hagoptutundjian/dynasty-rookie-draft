@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Dynasty Rookie Draft Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -294,6 +297,26 @@ body {
 .btn-outline { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
 .btn-outline:hover { border-color: var(--text-muted); color: var(--text); }
 .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.72rem; }
+#starter-update-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 1rem;
+  margin-bottom: 0.75rem;
+  background: linear-gradient(135deg, #047857 0%, #059669 100%);
+  color: white;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 500;
+  box-shadow: 0 2px 12px rgba(5,150,105,0.3);
+}
+#starter-update-banner .btn { white-space: nowrap; }
+#starter-update-banner .btn-outline { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); color: white; }
+#starter-update-banner .btn-outline:hover { background: rgba(255,255,255,0.25); }
+@media (max-width: 600px) {
+  #starter-update-banner { flex-wrap: wrap; font-size: 0.78rem; padding: 0.6rem 0.75rem; }
+  #starter-update-banner > span { flex-basis: 100%; }
+}
 .share-group { display: inline-flex; align-items: center; gap: 0; }
 .share-group .btn { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; }
 .share-select {
@@ -1558,6 +1581,7 @@ const STORAGE_KEY = 'dynasty_draft_board_2026';
 const EXPERTS_KEY = 'dynasty_draft_experts_2026';
 const MY_PICKS_KEY = 'dynasty_draft_my_picks_2026';
 const TIER_NAMES_KEY = 'dynasty_draft_tier_names_2026';
+const LAST_STARTER_KEY = 'dynasty_draft_last_starter_2026';
 const THEME_KEY = 'dynasty_draft_theme';
 
 function ensurePlayerFields(p) {
@@ -3258,31 +3282,87 @@ async function initApp() {
   // For brand-new users (no localStorage data), try to seed from a shared starter dataset in Firebase.
   // The creator publishes the starter via the "Send to League" button so league members get the same baseline.
   const isFreshUser = !localStorage.getItem(STORAGE_KEY);
-  if (isFreshUser) {
-    try {
-      const snap = await db.ref('starter/2026').once('value');
-      const starterData = snap.val();
-      // Firebase may convert arrays to objects with numeric keys — use toArray to handle either.
-      const starterPlayers = starterData ? toArray(starterData.players) : [];
-      if (starterPlayers.length > 0) {
-        players = starterPlayers.map(p => ({ ...p }));
-        players.forEach(ensurePlayerFields);
-        nextId = starterData.nextId || (players.length + 1);
-        if (starterData.tierNames && typeof starterData.tierNames === 'object') {
-          tierNames = { ...starterData.tierNames };
-        }
-        if (starterData.experts) {
-          const starterExperts = toArray(starterData.experts);
-          if (starterExperts.length > 0 && experts.length === 0) {
-            experts = fixExperts(starterExperts);
-          }
-        }
-      }
-    } catch (e) { /* offline or no starter — fall back to DEFAULT_PLAYERS already loaded */ }
+  let starterData = null;
+  try {
+    const snap = await db.ref('starter/2026').once('value');
+    starterData = snap.val();
+  } catch (e) { /* offline or no starter — ignore */ }
+
+  if (isFreshUser && starterData) {
+    applyStarterData(starterData);
+    if (starterData.publishedAt) localStorage.setItem(LAST_STARTER_KEY, String(starterData.publishedAt));
+  } else if (starterData && starterData.publishedAt) {
+    // Existing user — check if a newer starter has been published than what they last saw.
+    const lastSeen = parseInt(localStorage.getItem(LAST_STARTER_KEY) || '0');
+    if (starterData.publishedAt > lastSeen) {
+      // Defer banner display until after first render
+      setTimeout(() => showStarterUpdateBanner(starterData), 50);
+    }
   }
   renderRankings();
   initFirebaseSync();
 }
+
+function applyStarterData(starterData) {
+  const starterPlayers = toArray(starterData.players);
+  if (starterPlayers.length > 0) {
+    players = starterPlayers.map(p => ({ ...p }));
+    players.forEach(ensurePlayerFields);
+    nextId = starterData.nextId || (players.length + 1);
+    if (starterData.tierNames && typeof starterData.tierNames === 'object') {
+      tierNames = { ...starterData.tierNames };
+    } else {
+      tierNames = {};
+    }
+    if (starterData.experts) {
+      const starterExperts = toArray(starterData.experts);
+      if (starterExperts.length > 0) {
+        experts = fixExperts(starterExperts);
+      }
+    }
+  }
+}
+
+function showStarterUpdateBanner(starterData) {
+  if (document.getElementById('starter-update-banner')) return;
+  const d = new Date(starterData.publishedAt);
+  const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const banner = document.createElement('div');
+  banner.id = 'starter-update-banner';
+  banner.innerHTML = `
+    <span style="flex:1">&#128227; A newer league starter was published (${dateStr}). Update your board to the latest version?</span>
+    <button class="btn btn-primary btn-sm" onclick="applyStarterUpdate()">Update Now</button>
+    <button class="btn btn-outline btn-sm" onclick="dismissStarterUpdate()">Dismiss</button>
+  `;
+  // Insert into the rankings tab top
+  const rankingsTab = document.getElementById('tab-rankings');
+  if (rankingsTab) rankingsTab.insertBefore(banner, rankingsTab.firstChild);
+  // Stash the data so the apply button can use it
+  window.__pendingStarterData = starterData;
+}
+
+function applyStarterUpdate() {
+  if (!window.__pendingStarterData) return;
+  if (!confirm('This will replace your current rankings with the latest league starter. Your customizations will be lost. Continue?')) return;
+  pushUndo();
+  applyStarterData(window.__pendingStarterData);
+  if (window.__pendingStarterData.publishedAt) {
+    localStorage.setItem(LAST_STARTER_KEY, String(window.__pendingStarterData.publishedAt));
+  }
+  saveData();
+  renderRankings();
+  dismissStarterUpdate();
+}
+
+function dismissStarterUpdate() {
+  const banner = document.getElementById('starter-update-banner');
+  if (banner) banner.remove();
+  if (window.__pendingStarterData && window.__pendingStarterData.publishedAt) {
+    localStorage.setItem(LAST_STARTER_KEY, String(window.__pendingStarterData.publishedAt));
+  }
+  window.__pendingStarterData = null;
+}
+
 initApp();
 </script>
 </body>
