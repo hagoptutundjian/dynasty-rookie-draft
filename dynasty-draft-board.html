@@ -1122,6 +1122,7 @@ body {
     <div class="toolbar toolbar-actions">
       <button class="btn btn-primary" id="btn-add-player">+ Add Player</button>
       <button class="btn btn-outline" id="btn-my-picks" onclick="openMyPicksModal()" title="Set or update your draft picks">&#9733; My Picks</button>
+      <button class="btn btn-outline" id="btn-room" onclick="openRoomModal()" title="Manage your private league room">&#128274; Room</button>
       <div class="share-group">
         <button class="btn btn-outline" id="btn-share" onclick="shareRankings()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>Share</button>
         <select id="share-count" class="share-select">
@@ -1133,6 +1134,7 @@ body {
         </select>
       </div>
       <div class="toolbar-spacer"></div>
+      <button class="btn btn-outline" onclick="openLeagueModal()" title="Generate snippet to send to your league in NFL draft order">&#128242; Send to League</button>
       <button class="btn btn-outline" id="btn-export">Export</button>
       <button class="btn btn-outline" id="btn-undraft-all" onclick="undraftAll()" title="Clear all drafted marks">Undraft All</button>
     </div>
@@ -1326,6 +1328,52 @@ body {
   </div>
 </div>
 
+<!-- Room (League Privacy) Modal -->
+<div class="modal-overlay" id="room-modal">
+  <div class="modal">
+    <h3>Your Private Room</h3>
+    <div class="form-group">
+      <label>Room Code</label>
+      <div style="display:flex;gap:0.5rem">
+        <input type="text" id="room-code-input" autocapitalize="off" autocorrect="off" spellcheck="false" style="flex:1;font-family:monospace;letter-spacing:0.1em">
+        <button class="btn btn-outline btn-sm" type="button" id="room-copy-btn" onclick="copyRoomCode()" title="Copy code">Copy</button>
+      </div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.4rem;line-height:1.4">
+        Your data is private to this room code. League members each get their own.<br>
+        <strong>To sync across your own devices</strong>, use the same code (copy it from one device, paste on another).<br>
+        <strong>Don't share your code</strong> with league members — they'd see your rankings.
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-sm" type="button" id="room-new-btn" onclick="generateNewRoom()" title="Get a brand new private room">New Room</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-outline" id="room-cancel">Cancel</button>
+      <button class="btn btn-primary" id="room-save">Save & Reload</button>
+    </div>
+  </div>
+</div>
+
+<!-- League Distribution Modal -->
+<div class="modal-overlay" id="league-modal">
+  <div class="modal">
+    <h3>Send to League</h3>
+    <div class="form-group">
+      <div style="font-size:0.85rem;line-height:1.5;margin-bottom:0.75rem">
+        Copy the snippet below and replace the <code style="background:var(--surface-2);padding:0.1rem 0.3rem;border-radius:3px">DEFAULT_PLAYERS</code> array in the HTML file with it. Then send the file to your league.
+      </div>
+      <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem">
+        Each league member who opens it will get their own private room and start with these players in NFL draft order.
+      </div>
+      <textarea id="league-output" readonly style="width:100%;height:200px;font-family:monospace;font-size:0.7rem;background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.6rem;resize:vertical"></textarea>
+    </div>
+    <div class="modal-actions">
+      <div style="flex:1"></div>
+      <button class="btn btn-outline" id="league-cancel">Close</button>
+      <button class="btn btn-primary" type="button" onclick="copyLeagueSnippet()">Copy Snippet</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ==========================================
 // DEFAULT DATA (from Excel)
@@ -1439,6 +1487,8 @@ let players = [];
 let experts = [];
 let myPicks = []; // array of rank numbers, e.g. [34, 39, 43]
 let tierNames = {}; // { 1: "Elite", 2: "Studs", ... }
+let roomId = null; // unique per user; isolates their Firebase data
+const ROOM_KEY = 'dynasty_draft_room_2026';
 let nextId = 100;
 let editingPlayerId = null;
 
@@ -1475,8 +1525,24 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const playersRef = db.ref('players');
-const expertsRef = db.ref('experts');
+
+// --- Room isolation: each user gets their own roomId so league members don't see each other's data ---
+function generateRoomId() {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let s = '';
+  for (let i = 0; i < 8; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+roomId = localStorage.getItem(ROOM_KEY);
+if (!roomId) {
+  roomId = generateRoomId();
+  localStorage.setItem(ROOM_KEY, roomId);
+}
+function roomRef(path) { return db.ref(`rooms/${roomId}/${path}`); }
+let playersRef = roomRef('players');
+let expertsRef = roomRef('experts');
+let myPicksRef = roomRef('myPicks');
+let tierNamesRef = roomRef('tierNames');
 let firebaseReady = false;
 let ignoreNextSync = false;
 
@@ -1550,8 +1616,8 @@ function saveData() {
     ignoreNextSync = true;
     playersRef.set({ players, nextId });
     expertsRef.set(experts);
-    db.ref('myPicks').set(myPicks);
-    db.ref('tierNames').set(tierNames);
+    myPicksRef.set(myPicks);
+    tierNamesRef.set(tierNames);
   }
 }
 
@@ -1583,7 +1649,7 @@ function initFirebaseSync() {
     }
   });
 
-  db.ref('myPicks').on('value', (snapshot) => {
+  myPicksRef.on('value', (snapshot) => {
     const data = snapshot.val();
     if (Array.isArray(data)) {
       myPicks = data;
@@ -1593,7 +1659,7 @@ function initFirebaseSync() {
     }
   });
 
-  db.ref('tierNames').on('value', (snapshot) => {
+  tierNamesRef.on('value', (snapshot) => {
     const data = snapshot.val();
     if (data && typeof data === 'object') {
       tierNames = data;
@@ -1884,6 +1950,78 @@ function formatPickLabel(rank) {
   const pick = rank - (round - 1) * 12;
   return `${round}.${String(pick).padStart(2, '0')}`;
 }
+
+// ===== Room (privacy) =====
+function openRoomModal() {
+  document.getElementById('room-code-input').value = roomId || '';
+  document.getElementById('room-modal').classList.add('active');
+}
+function copyRoomCode() {
+  const inp = document.getElementById('room-code-input');
+  inp.select();
+  try { navigator.clipboard.writeText(inp.value); } catch (e) { document.execCommand('copy'); }
+  const btn = document.getElementById('room-copy-btn');
+  const orig = btn.textContent;
+  btn.textContent = 'Copied!';
+  setTimeout(() => btn.textContent = orig, 1500);
+}
+function generateNewRoom() {
+  if (!confirm('Get a brand new room? Your current data stays in your old room — this gives you a clean room to start over.')) return;
+  const code = generateRoomId();
+  document.getElementById('room-code-input').value = code;
+}
+document.getElementById('room-cancel').addEventListener('click', () => {
+  document.getElementById('room-modal').classList.remove('active');
+});
+document.getElementById('room-save').addEventListener('click', () => {
+  const newCode = (document.getElementById('room-code-input').value || '').trim().toLowerCase();
+  if (!newCode || !/^[a-z0-9-]{3,32}$/.test(newCode)) {
+    alert('Room code must be 3-32 chars (letters, numbers, dashes).');
+    return;
+  }
+  if (newCode === roomId) {
+    document.getElementById('room-modal').classList.remove('active');
+    return;
+  }
+  localStorage.setItem(ROOM_KEY, newCode);
+  // Clear local cached data so the new room loads fresh from Firebase
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(EXPERTS_KEY);
+  localStorage.removeItem(MY_PICKS_KEY);
+  localStorage.removeItem(TIER_NAMES_KEY);
+  location.reload();
+});
+
+// ===== Send to League =====
+function openLeagueModal() {
+  // Build a snippet of players sorted by NFL draft pick (with undrafted at the bottom in current rank order)
+  const sorted = [...players].sort((a, b) => {
+    const ap = parseInt(a.draftPick), bp = parseInt(b.draftPick);
+    const aValid = !isNaN(ap), bValid = !isNaN(bp);
+    if (aValid && bValid) return ap - bp;
+    if (aValid) return -1;
+    if (bValid) return 1;
+    return a.rank - b.rank;
+  });
+  const snippet = sorted.map((p, i) => {
+    const obj = { id: i + 1, rank: i + 1, tier: 1, name: p.name, pos: p.pos };
+    if (p.draftPick) obj.draftPick = p.draftPick;
+    if (p.draftTeam) obj.draftTeam = p.draftTeam;
+    return '  ' + JSON.stringify(obj).replace(/"(\w+)":/g, '$1:').replace(/,(\w)/g, ',$1');
+  }).join(',\n');
+  const full = `const DEFAULT_PLAYERS = [\n${snippet}\n];`;
+  document.getElementById('league-output').value = full;
+  document.getElementById('league-modal').classList.add('active');
+}
+function copyLeagueSnippet() {
+  const ta = document.getElementById('league-output');
+  ta.select();
+  try { navigator.clipboard.writeText(ta.value); } catch (e) { document.execCommand('copy'); }
+  alert('Copied! Paste this over the existing DEFAULT_PLAYERS array in the HTML file, then send to your league.');
+}
+document.getElementById('league-cancel').addEventListener('click', () => {
+  document.getElementById('league-modal').classList.remove('active');
+});
 
 function openMyPicksModal() {
   const input = document.getElementById('my-picks-input');
