@@ -1358,18 +1358,23 @@ body {
   <div class="modal">
     <h3>Send to League</h3>
     <div class="form-group">
-      <div style="font-size:0.85rem;line-height:1.5;margin-bottom:0.75rem">
-        Copy the snippet below and replace the <code style="background:var(--surface-2);padding:0.1rem 0.3rem;border-radius:3px">DEFAULT_PLAYERS</code> array in the HTML file with it. Then send the file to your league.
+      <div style="font-size:0.85rem;line-height:1.5;margin-bottom:0.85rem">
+        <strong>Step 1:</strong> Click <em>Publish Starter Data</em>. This saves a sorted-by-NFL-draft-order copy of your players that league members will start with. It does <strong>not</strong> change your own rankings.
       </div>
-      <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem">
-        Each league member who opens it will get their own private room and start with these players in NFL draft order.
+      <div style="font-size:0.85rem;line-height:1.5;margin-bottom:0.85rem">
+        <strong>Step 2:</strong> Share this link. Each league member gets their own private room with the published starter as their baseline.
       </div>
-      <textarea id="league-output" readonly style="width:100%;height:200px;font-family:monospace;font-size:0.7rem;background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.6rem;resize:vertical"></textarea>
+      <label>Shareable Link</label>
+      <div style="display:flex;gap:0.5rem">
+        <input type="text" id="league-url" readonly style="flex:1;font-family:monospace;font-size:0.78rem">
+        <button class="btn btn-outline btn-sm" type="button" onclick="copyLeagueUrl()" id="league-url-copy">Copy</button>
+      </div>
+      <div id="league-starter-status" style="font-size:0.72rem;color:var(--text-muted);margin-top:0.6rem"></div>
     </div>
     <div class="modal-actions">
+      <button class="btn btn-primary btn-sm" type="button" onclick="publishStarterData()" id="publish-starter-btn">Publish Starter Data</button>
       <div style="flex:1"></div>
       <button class="btn btn-outline" id="league-cancel">Close</button>
-      <button class="btn btn-primary" type="button" onclick="copyLeagueSnippet()">Copy Snippet</button>
     </div>
   </div>
 </div>
@@ -1994,7 +1999,30 @@ document.getElementById('room-save').addEventListener('click', () => {
 
 // ===== Send to League =====
 function openLeagueModal() {
-  // Build a snippet of players sorted by NFL draft pick (with undrafted at the bottom in current rank order)
+  // Show the public app URL (whatever URL the user is currently on, minus the room hash)
+  const url = `${window.location.origin}${window.location.pathname}`;
+  document.getElementById('league-url').value = url;
+  // Check if a starter has been published and show its timestamp
+  const status = document.getElementById('league-starter-status');
+  status.textContent = 'Checking starter status...';
+  db.ref('starter/2026').once('value').then(snap => {
+    const data = snap.val();
+    if (data && data.publishedAt) {
+      const d = new Date(data.publishedAt);
+      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      const count = (data.players || []).length;
+      status.innerHTML = `&#9989; Starter published: ${dateStr} at ${timeStr} (${count} players)`;
+    } else {
+      status.textContent = 'No starter published yet. Click "Publish Starter Data" to share your current rankings (in NFL draft order) with your league.';
+    }
+  }).catch(() => { status.textContent = ''; });
+  document.getElementById('league-modal').classList.add('active');
+}
+
+function publishStarterData() {
+  if (!confirm('Publish your current player list (sorted by NFL draft order) as the starter for new league members? This won\'t change your own rankings.')) return;
+  // Build the sorted player list — by NFL draft pick, then by current rank
   const sorted = [...players].sort((a, b) => {
     const ap = parseInt(a.draftPick), bp = parseInt(b.draftPick);
     const aValid = !isNaN(ap), bValid = !isNaN(bp);
@@ -2003,22 +2031,48 @@ function openLeagueModal() {
     if (bValid) return 1;
     return a.rank - b.rank;
   });
-  const snippet = sorted.map((p, i) => {
-    const obj = { id: i + 1, rank: i + 1, tier: 1, name: p.name, pos: p.pos };
-    if (p.draftPick) obj.draftPick = p.draftPick;
-    if (p.draftTeam) obj.draftTeam = p.draftTeam;
-    return '  ' + JSON.stringify(obj).replace(/"(\w+)":/g, '$1:').replace(/,(\w)/g, ',$1');
-  }).join(',\n');
-  const full = `const DEFAULT_PLAYERS = [\n${snippet}\n];`;
-  document.getElementById('league-output').value = full;
-  document.getElementById('league-modal').classList.add('active');
+  const starterPlayers = sorted.map((p, i) => ({
+    id: i + 1,
+    rank: i + 1,
+    tier: 1,
+    name: p.name,
+    pos: p.pos,
+    draftPick: p.draftPick || '',
+    draftTeam: p.draftTeam || '',
+    notes: '',
+    tags: [],
+    drafted: false
+  }));
+  const btn = document.getElementById('publish-starter-btn');
+  const orig = btn.textContent;
+  btn.textContent = 'Publishing...';
+  btn.disabled = true;
+  db.ref('starter/2026').set({
+    players: starterPlayers,
+    nextId: starterPlayers.length + 1,
+    publishedAt: Date.now()
+  }).then(() => {
+    btn.textContent = 'Published!';
+    setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 1500);
+    // Refresh the status
+    openLeagueModal();
+  }).catch(err => {
+    alert('Could not publish: ' + err.message);
+    btn.textContent = orig;
+    btn.disabled = false;
+  });
 }
-function copyLeagueSnippet() {
-  const ta = document.getElementById('league-output');
-  ta.select();
-  try { navigator.clipboard.writeText(ta.value); } catch (e) { document.execCommand('copy'); }
-  alert('Copied! Paste this over the existing DEFAULT_PLAYERS array in the HTML file, then send to your league.');
+
+function copyLeagueUrl() {
+  const inp = document.getElementById('league-url');
+  inp.select();
+  try { navigator.clipboard.writeText(inp.value); } catch (e) { document.execCommand('copy'); }
+  const btn = document.getElementById('league-url-copy');
+  const orig = btn.textContent;
+  btn.textContent = 'Copied!';
+  setTimeout(() => btn.textContent = orig, 1500);
 }
+
 document.getElementById('league-cancel').addEventListener('click', () => {
   document.getElementById('league-modal').classList.remove('active');
 });
@@ -3159,9 +3213,26 @@ async function shareRankings() {
 // ==========================================
 // INIT
 // ==========================================
-loadData();
-renderRankings();
-initFirebaseSync();
+async function initApp() {
+  loadData();
+  // For brand-new users (no localStorage data), try to seed from a shared starter dataset in Firebase.
+  // The creator publishes the starter via the "Send to League" button so league members get the same baseline.
+  const isFreshUser = !localStorage.getItem(STORAGE_KEY);
+  if (isFreshUser) {
+    try {
+      const snap = await db.ref('starter/2026').once('value');
+      const starterData = snap.val();
+      if (starterData && Array.isArray(starterData.players) && starterData.players.length > 0) {
+        players = starterData.players.map(p => ({ ...p }));
+        players.forEach(ensurePlayerFields);
+        nextId = starterData.nextId || (players.length + 1);
+      }
+    } catch (e) { /* offline or no starter — fall back to DEFAULT_PLAYERS already loaded */ }
+  }
+  renderRankings();
+  initFirebaseSync();
+}
+initApp();
 </script>
 </body>
 </html>
