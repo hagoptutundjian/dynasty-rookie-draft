@@ -2036,26 +2036,38 @@ function publishStarterData() {
     if (bValid) return 1;
     return a.rank - b.rank;
   });
+  // Tier players by NFL draft round: picks 1-32 = T1, 33-64 = T2, 65-96 = T3, 97-128 = T4, 129+/undrafted = T5
+  function pickToTier(pick) {
+    const n = parseInt(pick);
+    if (!n || n < 1) return 5;
+    if (n <= 32) return 1;
+    if (n <= 64) return 2;
+    if (n <= 96) return 3;
+    if (n <= 128) return 4;
+    return 5;
+  }
   const starterPlayers = sorted.map((p, i) => {
     const obj = {
       id: i + 1,
       rank: i + 1,
-      tier: 1,
+      tier: pickToTier(p.draftPick),
       name: p.name || '',
       pos: p.pos || '',
       drafted: false
     };
-    // Only include draftPick/draftTeam if they have actual values (Firebase may strip empty strings)
     if (p.draftPick) obj.draftPick = String(p.draftPick);
     if (p.draftTeam) obj.draftTeam = String(p.draftTeam);
     return obj;
   });
+  // Default tier names matching the round-based grouping
+  const starterTierNames = { 1: 'Round 1', 2: 'Round 2', 3: 'Round 3', 4: 'Round 4', 5: 'Undrafted' };
   const btn = document.getElementById('publish-starter-btn');
   const orig = btn.textContent;
   btn.textContent = 'Publishing...';
   btn.disabled = true;
   db.ref('starter/2026').set({
     players: starterPlayers,
+    tierNames: starterTierNames,
     nextId: starterPlayers.length + 1,
     publishedAt: Date.now()
   }).then(() => {
@@ -3235,6 +3247,9 @@ async function initApp() {
         players = starterPlayers.map(p => ({ ...p }));
         players.forEach(ensurePlayerFields);
         nextId = starterData.nextId || (players.length + 1);
+        if (starterData.tierNames && typeof starterData.tierNames === 'object') {
+          tierNames = { ...starterData.tierNames };
+        }
       }
     } catch (e) { /* offline or no starter — fall back to DEFAULT_PLAYERS already loaded */ }
   }
