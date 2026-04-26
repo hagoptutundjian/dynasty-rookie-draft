@@ -2123,13 +2123,16 @@ function publishStarterData() {
   const orig = btn.textContent;
   btn.textContent = 'Publishing...';
   btn.disabled = true;
+  const publishTime = Date.now();
   db.ref('starter/2026').set({
     players: starterPlayers,
     tierNames: starterTierNames,
     experts: starterExperts,
     nextId: starterPlayers.length + 1,
-    publishedAt: Date.now()
+    publishedAt: publishTime
   }).then(() => {
+    // Mark this publish as "seen" for the admin so they don't get prompted to overwrite their own rankings
+    localStorage.setItem(LAST_STARTER_KEY, String(publishTime));
     btn.textContent = 'Published!';
     setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 1500);
     // Refresh the status
@@ -3306,11 +3309,11 @@ async function initApp() {
   if (isFreshUser && starterData) {
     applyStarterData(starterData);
     if (starterData.publishedAt) localStorage.setItem(LAST_STARTER_KEY, String(starterData.publishedAt));
-  } else if (starterData && starterData.publishedAt) {
-    // Existing user — check if a newer starter has been published than what they last saw.
+  } else if (starterData && starterData.publishedAt && !isAdmin) {
+    // Non-admin existing users get a banner if a newer starter has been published.
+    // Admins never see this banner (they're the publishers, so they shouldn't be prompted to overwrite their own data).
     const lastSeen = parseInt(localStorage.getItem(LAST_STARTER_KEY) || '0');
     if (starterData.publishedAt > lastSeen) {
-      // Defer banner display until after first render
       setTimeout(() => showStarterUpdateBanner(starterData), 50);
     }
   }
