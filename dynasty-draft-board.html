@@ -2036,18 +2036,20 @@ function publishStarterData() {
     if (bValid) return 1;
     return a.rank - b.rank;
   });
-  const starterPlayers = sorted.map((p, i) => ({
-    id: i + 1,
-    rank: i + 1,
-    tier: 1,
-    name: p.name,
-    pos: p.pos,
-    draftPick: p.draftPick || '',
-    draftTeam: p.draftTeam || '',
-    notes: '',
-    tags: [],
-    drafted: false
-  }));
+  const starterPlayers = sorted.map((p, i) => {
+    const obj = {
+      id: i + 1,
+      rank: i + 1,
+      tier: 1,
+      name: p.name || '',
+      pos: p.pos || '',
+      drafted: false
+    };
+    // Only include draftPick/draftTeam if they have actual values (Firebase may strip empty strings)
+    if (p.draftPick) obj.draftPick = String(p.draftPick);
+    if (p.draftTeam) obj.draftTeam = String(p.draftTeam);
+    return obj;
+  });
   const btn = document.getElementById('publish-starter-btn');
   const orig = btn.textContent;
   btn.textContent = 'Publishing...';
@@ -3227,8 +3229,10 @@ async function initApp() {
     try {
       const snap = await db.ref('starter/2026').once('value');
       const starterData = snap.val();
-      if (starterData && Array.isArray(starterData.players) && starterData.players.length > 0) {
-        players = starterData.players.map(p => ({ ...p }));
+      // Firebase may convert arrays to objects with numeric keys — use toArray to handle either.
+      const starterPlayers = starterData ? toArray(starterData.players) : [];
+      if (starterPlayers.length > 0) {
+        players = starterPlayers.map(p => ({ ...p }));
         players.forEach(ensurePlayerFields);
         nextId = starterData.nextId || (players.length + 1);
       }
