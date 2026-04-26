@@ -2067,6 +2067,20 @@ function publishStarterData() {
     return obj;
   });
   const starterTierNames = { 1: 'Round 1', 2: 'Round 2', 3: 'Round 3', 4: 'Round 4+', 5: 'Waiver' };
+  // 5 placeholder experts each weighted at 20% (sums to 100%) with rankings matching NFL draft order
+  const baselineRankings = {};
+  starterPlayers.forEach(p => { baselineRankings[p.id] = p.rank; });
+  const starterExperts = [];
+  for (let i = 1; i <= 5; i++) {
+    starterExperts.push({
+      id: 1000 + i,
+      name: `Expert ${i}`,
+      rankings: { ...baselineRankings },
+      collapsed: true,
+      lastUpdated: Date.now(),
+      weight: 20
+    });
+  }
   const btn = document.getElementById('publish-starter-btn');
   const orig = btn.textContent;
   btn.textContent = 'Publishing...';
@@ -2074,6 +2088,7 @@ function publishStarterData() {
   db.ref('starter/2026').set({
     players: starterPlayers,
     tierNames: starterTierNames,
+    experts: starterExperts,
     nextId: starterPlayers.length + 1,
     publishedAt: Date.now()
   }).then(() => {
@@ -3255,6 +3270,12 @@ async function initApp() {
         nextId = starterData.nextId || (players.length + 1);
         if (starterData.tierNames && typeof starterData.tierNames === 'object') {
           tierNames = { ...starterData.tierNames };
+        }
+        if (starterData.experts) {
+          const starterExperts = toArray(starterData.experts);
+          if (starterExperts.length > 0 && experts.length === 0) {
+            experts = fixExperts(starterExperts);
+          }
         }
       }
     } catch (e) { /* offline or no starter — fall back to DEFAULT_PLAYERS already loaded */ }
