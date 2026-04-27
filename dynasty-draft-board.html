@@ -1225,18 +1225,19 @@ body:not(.is-admin) .admin-only { display: none !important; }
 .mock-pool-row .pick-btn:hover { background: var(--primary-hover); }
 @media (max-width: 600px) {
   .mock-board {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    padding: 0.25rem;
+    /* Fixed-width columns + overflow-x so the user can horizontally scroll a full 4x12 board */
+    grid-template-columns: 32px repeat(12, 110px);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.3rem;
     gap: 2px;
+    width: 100%;
   }
   .mock-cell {
-    min-height: 56px;
-    padding: 0.3rem 0.35rem;
-    font-size: 0.6rem;
+    min-height: 70px;
+    padding: 0.4rem 0.4rem;
+    font-size: 0.64rem;
   }
-  .mock-cell .pick-num { font-size: 0.55rem; }
-  .mock-cell .pick-team { font-size: 0.6rem; }
-  .mock-cell .pick-name { font-size: 0.7rem; }
 }
 </style>
 </head>
@@ -3187,6 +3188,16 @@ function publishMockDraftOrder() {
   });
 }
 
+// Toggle the full-draft-order editor visibility (collapsed by default once content exists)
+function toggleMockFullOrderEditor() {
+  const editor = document.getElementById('mock-full-editor');
+  const btn = document.getElementById('mock-full-toggle-btn');
+  if (!editor || !btn) return;
+  const collapsed = editor.style.display === 'none';
+  editor.style.display = collapsed ? 'block' : 'none';
+  btn.textContent = collapsed ? 'Hide' : 'Edit';
+}
+
 // Pull the shared draft order from Firebase (used to auto-fill for league members)
 async function fetchSharedDraftOrder() {
   try {
@@ -3367,12 +3378,17 @@ function renderMockSetup(container) {
         </div>
 
         <div id="mock-full-fields">
-          <label>Full Draft Order (one team per line, in pick order)</label>
-          <textarea id="mock-full-order" placeholder="Line 1 = pick 1.01\nLine 13 = pick 2.01\n... 48 lines total\n\nDuplicate team names are fine (they reflect trades)" style="min-height:280px">${saved.fullOrder ? escHtml(saved.fullOrder) : ''}</textarea>
-          <div class="mock-help">Paste 48 lines, one team name per line. Duplicate names are fine — they reflect traded picks. You can include "1.01 " or "1.05" prefixes; they'll be stripped.</div>
-          <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;flex-wrap:wrap">
-            <button class="btn btn-outline btn-sm admin-only" type="button" id="mock-publish-order-btn" onclick="publishMockDraftOrder()">&#128226; Share with League</button>
-            <button class="btn btn-outline btn-sm" type="button" id="mock-load-shared-btn" onclick="loadSharedDraftOrder()">&#11015;&#65039; Load League Order</button>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.3rem">
+            <label style="margin-bottom:0">Draft Order</label>
+            <button type="button" id="mock-full-toggle-btn" onclick="toggleMockFullOrderEditor()" style="background:none;border:none;color:var(--primary-hover);cursor:pointer;font-size:0.72rem;font-weight:600;padding:0">${saved.fullOrder ? 'Edit' : ''}</button>
+          </div>
+          <div id="mock-full-editor" style="display:${saved.fullOrder ? 'none' : 'block'}">
+            <textarea id="mock-full-order" placeholder="Line 1 = pick 1.01\nLine 13 = pick 2.01\n... 48 lines total\n\nDuplicate team names are fine (they reflect trades)" style="min-height:280px">${saved.fullOrder ? escHtml(saved.fullOrder) : ''}</textarea>
+            <div class="mock-help">Paste 48 lines, one team name per line. Duplicate names are fine — they reflect traded picks. You can include "1.01 " or "1.05" prefixes; they'll be stripped.</div>
+            <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;flex-wrap:wrap">
+              <button class="btn btn-outline btn-sm admin-only" type="button" id="mock-publish-order-btn" onclick="publishMockDraftOrder()">&#128226; Share with League</button>
+              <button class="btn btn-outline btn-sm" type="button" id="mock-load-shared-btn" onclick="loadSharedDraftOrder()">&#11015;&#65039; Load League Order</button>
+            </div>
           </div>
           <div id="mock-full-summary" style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.5rem"></div>
           <label>Your Team</label>
@@ -3910,33 +3926,24 @@ function renderMockBoard(container) {
     return `<div class="mock-cell${made ? ' filled' : ''}${isYours ? ' your-pick' : ''}${isOnClock ? ' on-clock' : ''}"${cellStyle}>${cellContent}</div>`;
   }
 
-  const isMobile = window.innerWidth <= 600;
-  let boardHtml = '';
-  if (isMobile) {
-    // Mobile: 8 rows × 6 columns, cells rendered in pick-number order (1.01, 1.02, ..., 4.12)
-    for (let pickNum = 1; pickNum <= totalPicks; pickNum++) {
-      boardHtml += buildMockCellHtml(pickNum);
-    }
-  } else {
-    // Desktop: original 4×12 with team header row + round labels
-    boardHtml = '<div class="mock-round-label"></div>'; // top-left empty corner
+  // 4×12 board (same on desktop and mobile; mobile gets horizontal scroll via CSS)
+  let boardHtml = '<div class="mock-round-label"></div>'; // top-left empty corner
+  for (let s = 1; s <= 12; s++) {
+    const teamIdx = pickToTeamIndex(s);
+    const teamName = mockDraft.teams[teamIdx] || `Team ${s}`;
+    const isYours = teamIdx === mockDraft.myTeamIndex;
+    boardHtml += `<div class="mock-board-header${isYours ? ' your-team' : ''}" title="${escHtml(teamName)}">${s}. ${escHtml(teamName)}</div>`;
+  }
+  for (let r = 1; r <= mockDraft.rounds; r++) {
+    boardHtml += `<div class="mock-round-label">R${r}</div>`;
     for (let s = 1; s <= 12; s++) {
-      const teamIdx = pickToTeamIndex(s);
-      const teamName = mockDraft.teams[teamIdx] || `Team ${s}`;
-      const isYours = teamIdx === mockDraft.myTeamIndex;
-      boardHtml += `<div class="mock-board-header${isYours ? ' your-team' : ''}" title="${escHtml(teamName)}">${s}. ${escHtml(teamName)}</div>`;
-    }
-    for (let r = 1; r <= mockDraft.rounds; r++) {
-      boardHtml += `<div class="mock-round-label">R${r}</div>`;
-      for (let s = 1; s <= 12; s++) {
-        let pickNum;
-        if (mockDraft.draftType === 'snake' && r % 2 === 0) {
-          pickNum = (r - 1) * 12 + (12 - s + 1);
-        } else {
-          pickNum = (r - 1) * 12 + s;
-        }
-        boardHtml += buildMockCellHtml(pickNum);
+      let pickNum;
+      if (mockDraft.draftType === 'snake' && r % 2 === 0) {
+        pickNum = (r - 1) * 12 + (12 - s + 1);
+      } else {
+        pickNum = (r - 1) * 12 + s;
       }
+      boardHtml += buildMockCellHtml(pickNum);
     }
   }
 
