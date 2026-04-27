@@ -4035,44 +4035,10 @@ function renderMockBoard(container) {
       ? `<button class="btn btn-outline btn-sm" onclick="skipToNextMyPick()" style="margin-left:auto">Skip Ahead</button>`
       : '';
     const headerText = isYourTurn ? `You're on the clock! Click a player to draft.` : `Best Available`;
-    const aiSettingsCollapsed = mockDraft._aiSettingsCollapsed !== false; // default collapsed
-    const aiSettingsHtml = `
-      <div style="margin-bottom:0.5rem;font-size:0.75rem">
-        <button type="button" onclick="toggleMockAiSettings()" style="background:none;border:none;color:var(--primary-hover);cursor:pointer;font-weight:600;padding:0;font-size:0.75rem">${aiSettingsCollapsed ? '&#9656;' : '&#9662;'} AI Settings (Variation: ${mockDraft.variation}%, Bias: ${formatPosBias(mockDraft.posBias)})</button>
-        ${!aiSettingsCollapsed ? `
-          <div style="display:flex;flex-direction:column;gap:0.4rem;padding:0.6rem;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:0.4rem">
-            <div style="display:flex;align-items:center;gap:0.6rem">
-              <label style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;min-width:65px">Source</label>
-              <select onchange="updateMockSource(this.value)" style="flex:1;padding:0.3rem;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:0.78rem">
-                <option value="consensus" ${mockDraft.source === 'consensus' ? 'selected' : ''}>Weighted Consensus</option>
-                <option value="my" ${mockDraft.source === 'my' ? 'selected' : ''}>My Rankings</option>
-                ${experts.map(ex => `<option value="exp_${ex.id}" ${mockDraft.source === 'exp_' + ex.id ? 'selected' : ''}>${escHtml(ex.name)}</option>`).join('')}
-              </select>
-            </div>
-            <div style="display:flex;align-items:center;gap:0.6rem">
-              <label style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;min-width:65px">Variation</label>
-              <input type="range" min="0" max="100" step="5" value="${mockDraft.variation}" oninput="updateMockVariation(this.value)" style="flex:1">
-              <span style="font-size:0.78rem;font-weight:700;min-width:36px;text-align:right">${mockDraft.variation}%</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:0.6rem">
-              <label style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;min-width:65px">Bias</label>
-              <select onchange="updateMockPosBias(this.value)" style="flex:1;padding:0.3rem;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:0.78rem">
-                <option value="none" ${mockDraft.posBias === 'none' ? 'selected' : ''}>None — strict rankings</option>
-                <option value="qb_premium" ${mockDraft.posBias === 'qb_premium' ? 'selected' : ''}>QB-premium</option>
-                <option value="rb_late" ${mockDraft.posBias === 'rb_late' ? 'selected' : ''}>RB-fade</option>
-                <option value="wr_heavy" ${mockDraft.posBias === 'wr_heavy' ? 'selected' : ''}>WR-heavy</option>
-              </select>
-            </div>
-            <div style="font-size:0.65rem;color:var(--text-muted)">Changes apply to the next AI pick onward.</div>
-          </div>
-        ` : ''}
-      </div>
-    `;
     panelHtml = `
       <div class="mock-pick-panel">
         <h3 style="display:flex;align-items:center">${headerText}${skipBtn}</h3>
         ${lastPickHtml}
-        ${aiSettingsHtml}
         <div class="mock-pool">
           ${available.map(p => {
             const posColors = { QB: '#f87171', RB: '#60a5fa', WR: '#4ade80', TE: '#fbbf24' };
@@ -4091,6 +4057,44 @@ function renderMockBoard(container) {
     `;
   }
 
+  // AI Settings (always visible when there's an active mockDraft, so user can tweak before subsequent runs)
+  const aiSettingsCollapsed = mockDraft._aiSettingsCollapsed !== false;
+  const aiSettingsHtml = `
+    <div class="mock-pick-panel" style="padding:0.7rem 1rem">
+      <button type="button" onclick="toggleMockAiSettings()" style="background:none;border:none;color:var(--primary-hover);cursor:pointer;font-weight:700;padding:0;font-size:0.85rem;display:flex;align-items:center;width:100%;text-align:left">
+        ${aiSettingsCollapsed ? '&#9656;' : '&#9662;'}&nbsp;&nbsp;&#9881;&#65039; AI Settings
+        <span style="margin-left:auto;font-size:0.72rem;color:var(--text-muted);font-weight:500">${formatSourceLabel(mockDraft.source)} &middot; ${mockDraft.variation}% variation &middot; ${formatPosBias(mockDraft.posBias)}</span>
+      </button>
+      ${!aiSettingsCollapsed ? `
+        <div style="display:flex;flex-direction:column;gap:0.5rem;padding:0.75rem;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:0.5rem">
+          <div style="display:flex;align-items:center;gap:0.6rem">
+            <label style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;min-width:75px">Source</label>
+            <select onchange="updateMockSource(this.value)" style="flex:1;padding:0.35rem;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:0.82rem">
+              <option value="consensus" ${mockDraft.source === 'consensus' ? 'selected' : ''}>Weighted Consensus</option>
+              <option value="my" ${mockDraft.source === 'my' ? 'selected' : ''}>My Rankings</option>
+              ${experts.map(ex => `<option value="exp_${ex.id}" ${mockDraft.source === 'exp_' + ex.id ? 'selected' : ''}>${escHtml(ex.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.6rem">
+            <label style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;min-width:75px">Variation</label>
+            <input type="range" min="0" max="100" step="5" value="${mockDraft.variation}" oninput="updateMockVariation(this.value)" style="flex:1">
+            <span style="font-size:0.82rem;font-weight:700;min-width:42px;text-align:right">${mockDraft.variation}%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.6rem">
+            <label style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;min-width:75px">Bias</label>
+            <select onchange="updateMockPosBias(this.value)" style="flex:1;padding:0.35rem;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:0.82rem">
+              <option value="none" ${mockDraft.posBias === 'none' ? 'selected' : ''}>None — strict rankings</option>
+              <option value="qb_premium" ${mockDraft.posBias === 'qb_premium' ? 'selected' : ''}>QB-premium</option>
+              <option value="rb_late" ${mockDraft.posBias === 'rb_late' ? 'selected' : ''}>RB-fade</option>
+              <option value="wr_heavy" ${mockDraft.posBias === 'wr_heavy' ? 'selected' : ''}>WR-heavy</option>
+            </select>
+          </div>
+          <div style="font-size:0.7rem;color:var(--text-muted)">Changes apply to the next AI pick. After draft completes, hit <strong>Restart</strong> to run again with new settings.</div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+
   // History panel (shown if toggled)
   const historyHtml = mockDraft._showHistory ? renderMockHistoryHtml() : '';
   // Team rosters panel (shown automatically when draft is complete)
@@ -4099,12 +4103,24 @@ function renderMockBoard(container) {
   container.innerHTML = `
     <div class="mock-draft-view">
       <div class="mock-status-bar">${statusHtml}</div>
+      ${aiSettingsHtml}
       <div class="mock-board">${boardHtml}</div>
       ${historyHtml}
       ${rostersHtml}
       ${panelHtml}
     </div>
   `;
+}
+
+function formatSourceLabel(src) {
+  if (src === 'consensus') return 'Consensus';
+  if (src === 'my') return 'My Rankings';
+  if (src && src.startsWith('exp_')) {
+    const id = parseInt(src.slice(4));
+    const ex = experts.find(e => e.id === id);
+    return ex ? ex.name : 'Expert';
+  }
+  return 'Consensus';
 }
 
 function renderMockRostersHtml() {
