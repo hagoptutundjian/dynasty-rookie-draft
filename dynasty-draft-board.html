@@ -4307,7 +4307,8 @@ function renderPositional() {
   const bestAvailTier = players.find(p => !p.drafted)?.tier ?? null;
 
   container.innerHTML = `<div class="pos-columns">${positions.map(pos => {
-    const posPlayers = players.filter(p => p.pos === pos);
+    // Exclude players ranked 49+ (waiver pool) from the positional view
+    const posPlayers = players.filter(p => p.pos === pos && p.rank < 49);
     return `<div class="pos-column col-${pos}">
       <div class="pos-column-header">${pos} <span class="count">${posPlayers.length}</span></div>
       <div>
