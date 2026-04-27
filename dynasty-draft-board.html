@@ -1160,12 +1160,12 @@ body:not(.is-admin) .admin-only { display: none !important; }
 .mock-cell {
   background: var(--surface-2);
   border-radius: 3px;
-  padding: 0.25rem 0.3rem;
+  padding: 0.4rem 0.4rem;
   font-size: 0.64rem;
-  min-height: 50px;
+  min-height: 70px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   position: relative;
   border: 1px solid transparent;
   line-height: 1.2;
@@ -3695,6 +3695,34 @@ function makeUserPick(playerId) {
   setTimeout(advanceMockDraft, 800);
 }
 
+function skipToNextMyPick() {
+  if (!mockDraft) return;
+  const totalPicks = mockDraft.rounds * 12;
+  // Make AI picks in a tight loop (no rendering/sounds between picks) until it's
+  // the user's turn OR the draft is done.
+  let safety = 100;
+  while (mockDraft.picks.length < totalPicks && safety-- > 0) {
+    const nextPickNum = mockDraft.picks.length + 1;
+    if (isMyPick(nextPickNum)) break;
+    const player = pickAutoPlayer();
+    if (!player) break;
+    const round = Math.ceil(nextPickNum / 12);
+    const slot = nextPickNum - (round - 1) * 12;
+    const teamIndex = pickToTeamIndex(nextPickNum);
+    mockDraft.picks.push({ pickNum: nextPickNum, round, slot, teamIndex, playerId: player.id });
+  }
+  // Single sound + save + render at the end
+  saveData();
+  // If the draft completed, log to history
+  if (mockDraft.picks.length >= totalPicks && !mockDraft.loggedToHistory) {
+    mockDraft.loggedToHistory = true;
+    logCompletedDraft();
+    saveData();
+  }
+  renderMockDraft();
+  playPickSound(false);
+}
+
 function advanceMockDraft() {
   if (!mockDraft) return;
   const totalPicks = mockDraft.rounds * 12;
@@ -3848,7 +3876,7 @@ function renderMockBoard(container) {
       }
     }
     const skipBtn = !isYourTurn
-      ? `<button class="btn btn-outline btn-sm" onclick="advanceMockDraft()" style="margin-left:auto">Skip Ahead</button>`
+      ? `<button class="btn btn-outline btn-sm" onclick="skipToNextMyPick()" style="margin-left:auto">Skip Ahead</button>`
       : '';
     const headerText = isYourTurn ? `You're on the clock! Click a player to draft.` : `Best Available`;
     panelHtml = `
