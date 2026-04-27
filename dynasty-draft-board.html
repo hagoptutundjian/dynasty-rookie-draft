@@ -3198,6 +3198,8 @@ function toggleMockFullOrderEditor() {
   btn.textContent = collapsed ? 'Hide' : 'Edit';
 }
 
+const MOCK_LEAGUE_SEEN_KEY = 'dynasty_draft_mock_league_seen_2026';
+
 // Pull the shared draft order from Firebase (used to auto-fill for league members)
 async function fetchSharedDraftOrder() {
   try {
@@ -3994,15 +3996,74 @@ function renderMockBoard(container) {
 
   // History panel (shown if toggled)
   const historyHtml = mockDraft._showHistory ? renderMockHistoryHtml() : '';
+  // Team rosters panel (shown automatically when draft is complete)
+  const rostersHtml = isComplete ? renderMockRostersHtml() : '';
 
   container.innerHTML = `
     <div class="mock-draft-view">
       <div class="mock-status-bar">${statusHtml}</div>
       <div class="mock-board">${boardHtml}</div>
       ${historyHtml}
+      ${rostersHtml}
       ${panelHtml}
     </div>
   `;
+}
+
+function renderMockRostersHtml() {
+  // Group all picks by team index
+  const byTeam = {}; // teamIdx -> [{pickNum, player}]
+  mockDraft.picks.forEach(p => {
+    const ti = p.teamIndex;
+    if (!byTeam[ti]) byTeam[ti] = [];
+    const player = players.find(pl => pl.id === p.playerId);
+    byTeam[ti].push({ pickNum: p.pickNum, player });
+  });
+  // Order teams: your team first, then alphabetical by team name
+  const teamIdxList = Object.keys(byTeam).map(Number);
+  teamIdxList.sort((a, b) => {
+    if (a === mockDraft.myTeamIndex) return -1;
+    if (b === mockDraft.myTeamIndex) return 1;
+    return (mockDraft.teams[a] || '').localeCompare(mockDraft.teams[b] || '');
+  });
+  const posColors = { QB: '#f87171', RB: '#60a5fa', WR: '#4ade80', TE: '#fbbf24' };
+  const cardsHtml = teamIdxList.map(ti => {
+    const picks = byTeam[ti].sort((a, b) => a.pickNum - b.pickNum);
+    const teamName = ti === mockDraft.myTeamIndex ? 'You' : (mockDraft.teams[ti] || `Team ${ti + 1}`);
+    const isYours = ti === mockDraft.myTeamIndex;
+    // Position counts
+    const posCount = { QB: 0, RB: 0, WR: 0, TE: 0 };
+    picks.forEach(({ player }) => { if (player) posCount[player.pos] = (posCount[player.pos] || 0) + 1; });
+    const posSummary = Object.entries(posCount).filter(([_, c]) => c > 0).map(([p, c]) => `<span style="color:${posColors[p] || '#94a3b8'};font-size:0.7rem;font-weight:700">${c}${p}</span>`).join(' &middot; ');
+    const rowsHtml = picks.map(({ pickNum, player }) => {
+      const r = Math.ceil(pickNum / 12);
+      const s = pickNum - (r - 1) * 12;
+      const label = `${r}.${String(s).padStart(2, '0')}`;
+      if (!player) return `<div style="font-size:0.75rem;color:var(--text-muted)">${label} — (unknown)</div>`;
+      const pc = posColors[player.pos] || '#94a3b8';
+      return `<div style="display:grid;grid-template-columns:42px 1fr auto;gap:0.5rem;align-items:center;padding:0.2rem 0;font-size:0.78rem;border-bottom:1px solid var(--border)">
+        <span style="font-weight:700;color:var(--text-muted);font-size:0.72rem">${label}</span>
+        <span style="font-weight:600">${escHtml(player.name)}</span>
+        <span style="font-size:0.6rem;font-weight:700;padding:0.05rem 0.3rem;border-radius:3px;color:${pc};background:${pc}22">${player.pos}</span>
+      </div>`;
+    }).join('');
+    const totalPicks = picks.length;
+    return `<div style="background:var(--surface-2);border:1px solid ${isYours ? '#FFD700' : 'var(--border)'};border-radius:var(--radius-sm);padding:0.6rem 0.75rem;${isYours ? 'box-shadow: inset 3px 0 0 #FFD700;' : ''}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.2rem;gap:0.5rem">
+        <h4 style="font-size:0.85rem;font-weight:700;color:${isYours ? '#FFD700' : 'var(--text)'};margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escAttr(teamName)}">${escHtml(teamName)}</h4>
+        <span style="font-size:0.65rem;color:var(--text-muted);font-weight:600;white-space:nowrap">${totalPicks} pick${totalPicks !== 1 ? 's' : ''}</span>
+      </div>
+      <div style="margin-bottom:0.35rem">${posSummary}</div>
+      <div>${rowsHtml}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="mock-pick-panel">
+    <h3 style="display:flex;align-items:center">&#128106; Team Rosters</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));gap:0.75rem">
+      ${cardsHtml}
+    </div>
+  </div>`;
 }
 
 function toggleMockHistoryView() {
