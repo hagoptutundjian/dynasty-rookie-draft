@@ -1128,46 +1128,47 @@ body:not(.is-admin) .admin-only { display: none !important; }
 }
 .mock-board {
   display: grid;
-  grid-template-columns: 50px repeat(12, minmax(120px, 1fr));
-  gap: 4px;
+  grid-template-columns: 36px repeat(12, minmax(96px, 1fr));
+  gap: 2px;
   overflow-x: auto;
-  padding: 0.5rem;
+  padding: 0.35rem;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
 .mock-board-header {
-  font-size: 0.7rem;
+  font-size: 0.62rem;
   font-weight: 700;
   text-align: center;
-  padding: 0.4rem 0.3rem;
+  padding: 0.25rem 0.2rem;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.mock-board-header.your-team { color: #FFD700; background: rgba(255,215,0,0.08); border-radius: 4px; }
+.mock-board-header.your-team { color: #FFD700; background: rgba(255,215,0,0.08); border-radius: 3px; }
 .mock-round-label {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
+  font-size: 0.62rem;
   font-weight: 700;
   color: var(--text-muted);
 }
 .mock-cell {
   background: var(--surface-2);
-  border-radius: 4px;
-  padding: 0.4rem 0.5rem;
-  font-size: 0.72rem;
-  min-height: 52px;
+  border-radius: 3px;
+  padding: 0.25rem 0.35rem;
+  font-size: 0.66rem;
+  min-height: 38px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   position: relative;
   border: 1px solid transparent;
+  line-height: 1.15;
 }
 .mock-cell.filled { background: var(--surface); border-color: var(--border); }
 .mock-cell.your-pick { border-color: #FFD700; box-shadow: inset 3px 0 0 #FFD700; }
@@ -1180,9 +1181,9 @@ body:not(.is-admin) .admin-only { display: none !important; }
   0%, 100% { box-shadow: 0 0 0 0 rgba(5,150,105,0.5); }
   50% { box-shadow: 0 0 0 4px rgba(5,150,105,0); }
 }
-.mock-cell .pick-num { font-size: 0.6rem; color: var(--text-muted); font-weight: 600; }
-.mock-cell .pick-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
-.mock-cell .pick-pos { font-size: 0.6rem; font-weight: 700; opacity: 0.85; }
+.mock-cell .pick-num { font-size: 0.55rem; color: var(--text-muted); font-weight: 600; line-height: 1; }
+.mock-cell .pick-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.15; font-size: 0.7rem; }
+.mock-cell .pick-pos { font-size: 0.55rem; font-weight: 700; opacity: 0.85; line-height: 1; margin-top: 1px; }
 
 .mock-pick-panel {
   background: var(--surface);
@@ -1680,6 +1681,7 @@ let mockDraft = null; // active mock draft state (see resetMockDraft for shape)
 let roomId = null; // unique per user; isolates their Firebase data
 const ROOM_KEY = 'dynasty_draft_room_2026';
 const MOCK_DRAFT_KEY = 'dynasty_draft_mock_2026';
+const MOCK_SETUP_KEY = 'dynasty_draft_mock_setup_2026';
 let nextId = 100;
 let editingPlayerId = null;
 
@@ -3140,6 +3142,15 @@ function updateExpertWeight(expertId, value) {
 // MOCK DRAFT
 // ==========================================
 
+function loadMockSetup() {
+  try { return JSON.parse(localStorage.getItem(MOCK_SETUP_KEY) || '{}'); } catch (e) { return {}; }
+}
+function saveMockSetup(patch) {
+  const cur = loadMockSetup();
+  const merged = { ...cur, ...patch };
+  localStorage.setItem(MOCK_SETUP_KEY, JSON.stringify(merged));
+}
+
 function defaultTeamNames(n) {
   const out = [];
   for (let i = 1; i <= n; i++) out.push(`Team ${i}`);
@@ -3156,6 +3167,7 @@ function renderMockDraft() {
 }
 
 function renderMockSetup(container) {
+  const saved = loadMockSetup();
   const expertOptions = experts.map(ex => `<option value="exp_${ex.id}">${escHtml(ex.name)}</option>`).join('');
   const placeholderStandard = defaultTeamNames(12).join('\n');
   const placeholderCustom = (() => {
@@ -3175,9 +3187,9 @@ function renderMockSetup(container) {
         <h3>Draft Order</h3>
         <label>Mode</label>
         <select id="mock-mode">
-          <option value="full" selected>Full Draft Order — Paste all 48 picks with team names</option>
-          <option value="standard">Standard — Snake/Linear from a draft slot</option>
-          <option value="custom">My Picks — Specify exactly which picks are mine</option>
+          <option value="full" ${(saved.mode || 'full') === 'full' ? 'selected' : ''}>Full Draft Order — Paste all 48 picks with team names</option>
+          <option value="standard" ${saved.mode === 'standard' ? 'selected' : ''}>Standard — Snake/Linear from a draft slot</option>
+          <option value="custom" ${saved.mode === 'custom' ? 'selected' : ''}>My Picks — Specify exactly which picks are mine</option>
         </select>
         <div class="mock-help">Default mode lets you paste your league's actual draft order (with traded picks) and see all team names on the board.</div>
 
@@ -3202,7 +3214,7 @@ function renderMockSetup(container) {
 
         <div id="mock-full-fields">
           <label>Full Draft Order (one team per line, in pick order)</label>
-          <textarea id="mock-full-order" placeholder="Line 1 = pick 1.01\nLine 13 = pick 2.01\n... 48 lines total\n\nDuplicate team names are fine (they reflect trades)" style="min-height:280px"></textarea>
+          <textarea id="mock-full-order" placeholder="Line 1 = pick 1.01\nLine 13 = pick 2.01\n... 48 lines total\n\nDuplicate team names are fine (they reflect trades)" style="min-height:280px">${saved.fullOrder ? escHtml(saved.fullOrder) : ''}</textarea>
           <div class="mock-help">Paste 48 lines, one team name per line. Duplicate names are fine — they reflect traded picks. You can include "1.01 " or "1.05" prefixes; they'll be stripped.</div>
           <div id="mock-full-summary" style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.5rem"></div>
           <label>Your Team</label>
@@ -3268,18 +3280,18 @@ function renderMockSetup(container) {
     document.getElementById('mock-full-fields').style.display = v === 'full' ? '' : 'none';
   });
   // Live update "Your Team" dropdown as user pastes the full order
-  document.getElementById('mock-full-order').addEventListener('input', () => {
-    const parsed = parseFullOrderTeams(document.getElementById('mock-full-order').value);
+  function refreshFullDropdown(preferTeamName) {
+    const raw = document.getElementById('mock-full-order').value;
+    const parsed = parseFullOrderTeams(raw);
     const sel = document.getElementById('mock-full-my-team');
     const summary = document.getElementById('mock-full-summary');
-    const current = sel.value;
+    const previousVal = sel.value;
     sel.innerHTML = '';
     if (parsed.uniqueTeams.length === 0) {
       sel.innerHTML = '<option value="">(paste order above first)</option>';
       summary.textContent = '';
       return;
     }
-    // Sort dropdown by pick count desc so teams with most picks are at the top
     const ordered = parsed.uniqueTeams.map((name, i) => ({ name, idx: i, count: parsed.counts[i] }))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
     ordered.forEach(t => {
@@ -3288,24 +3300,75 @@ function renderMockSetup(container) {
       opt.textContent = `${t.name} (${t.count} pick${t.count !== 1 ? 's' : ''})`;
       sel.appendChild(opt);
     });
-    if (current !== '' && current != null && parseInt(current) < parsed.uniqueTeams.length) sel.value = current;
-    // Summary
+    // Try to restore by name first (more stable across re-pastes), then by index
+    let restored = false;
+    const tryName = (preferTeamName != null ? preferTeamName : '').toLowerCase();
+    if (tryName) {
+      const match = parsed.uniqueTeams.findIndex(n => n.toLowerCase() === tryName);
+      if (match !== -1) { sel.value = match; restored = true; }
+    }
+    if (!restored && previousVal !== '' && previousVal != null && parseInt(previousVal) < parsed.uniqueTeams.length) {
+      sel.value = previousVal;
+    }
     const total = parsed.lines.length;
     const teamCount = parsed.uniqueTeams.length;
     let warning = '';
     if (total !== 48) warning += ` &#9888; Expected 48 picks, got ${total}.`;
     if (teamCount !== 12) warning += ` &#9888; Expected 12 unique teams, got ${teamCount}.`;
     summary.innerHTML = `Parsed: <strong>${total}</strong> picks across <strong>${teamCount}</strong> teams.${warning ? `<span style="color:#ef4444">${warning}</span>` : ''}`;
+  }
+  document.getElementById('mock-full-order').addEventListener('input', () => {
+    refreshFullDropdown();
+    saveMockSetup({ fullOrder: document.getElementById('mock-full-order').value });
   });
+  document.getElementById('mock-full-my-team').addEventListener('change', () => {
+    const sel = document.getElementById('mock-full-my-team');
+    const opt = sel.options[sel.selectedIndex];
+    if (opt) {
+      // Save the team NAME (without the count suffix) so we can restore even after re-paste
+      const name = opt.textContent.replace(/\s*\(\d+ picks?\)\s*$/, '').trim();
+      saveMockSetup({ fullTeamName: name });
+    }
+  });
+  document.getElementById('mock-source').addEventListener('change', (e) => saveMockSetup({ source: e.target.value }));
+  document.getElementById('mock-variation').addEventListener('change', (e) => saveMockSetup({ variation: parseInt(e.target.value) || 0 }));
+  document.getElementById('mock-pos-bias').addEventListener('change', (e) => saveMockSetup({ posBias: e.target.value }));
+  document.getElementById('mock-mode').addEventListener('change', (e) => saveMockSetup({ mode: e.target.value }));
+
+  // Initial population of full-mode dropdown if there's saved content
+  if (saved.fullOrder) refreshFullDropdown(saved.fullTeamName);
+  // Restore AI settings
+  if (saved.source) document.getElementById('mock-source').value = saved.source;
+  if (saved.variation != null) {
+    document.getElementById('mock-variation').value = saved.variation;
+    document.getElementById('mock-variation-label').textContent = saved.variation;
+  }
+  if (saved.posBias) document.getElementById('mock-pos-bias').value = saved.posBias;
 }
 
-// Parse a 48-line paste of team names. Strips optional "1.05" or "1. " prefixes.
-// Normalizes whitespace and case for matching so minor differences don't split teams.
+// Parse a 48-line paste of team names. Handles formats like:
+//   "Team Alpha"
+//   "1.01 Team Alpha"
+//   "1.01 R1 Team Alpha TBD ..."
+//   "1.01\tR1\tTeam Alpha\tTBD\t..."
+// Cuts at "TBD" (everything after is ignored). Normalizes whitespace and case for matching.
 function parseFullOrderTeams(raw) {
-  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
-    // Strip optional leading prefixes like "1.01 ", "5) ", "5: ", "5. "
-    return line.replace(/^\d+(\.\d+)?\s*[:.\)]?\s*/, '').trim();
-  });
+  const lines = raw.split('\n').map(l => {
+    let s = l;
+    // Cut at TBD (case-insensitive, word boundary)
+    const tbdMatch = s.match(/\bTBD\b/i);
+    if (tbdMatch) s = s.slice(0, tbdMatch.index);
+    // Replace tabs with spaces
+    s = s.replace(/\t+/g, ' ').trim();
+    if (!s) return '';
+    // Strip leading pick label like "1.01", "12", "5.", "12."
+    s = s.replace(/^\d+(\.\d+)?\s*[:.\)]?\s*/, '');
+    // Strip optional round label like "R1", "R3", "Round 2"
+    s = s.replace(/^(?:R\d+|Round\s*\d+)\s*[:.\)]?\s*/i, '');
+    // Trim trailing punctuation/whitespace
+    s = s.replace(/[\s:.\)|,;-]+$/, '').trim();
+    return s;
+  }).filter(Boolean);
   // Normalization: lowercase + collapse whitespace + strip outer punctuation for matching
   function normalize(s) {
     return s.toLowerCase().replace(/\s+/g, ' ').replace(/^['"\s]+|['"\s]+$/g, '').trim();
@@ -3417,7 +3480,7 @@ function startMockDraft() {
   };
   saveData();
   renderMockDraft();
-  setTimeout(advanceMockDraft, 200);
+  setTimeout(advanceMockDraft, 800);
 }
 
 function isMyPick(pickNum) {
@@ -3525,7 +3588,7 @@ function makeUserPick(playerId) {
   mockDraft.picks.push({ pickNum, round, slot, teamIndex, playerId });
   saveData();
   renderMockDraft();
-  setTimeout(advanceMockDraft, 200);
+  setTimeout(advanceMockDraft, 800);
 }
 
 function advanceMockDraft() {
@@ -3540,7 +3603,7 @@ function advanceMockDraft() {
   }
   // AI's turn
   if (makeAutoPick()) {
-    setTimeout(advanceMockDraft, 250); // brief delay between AI picks
+    setTimeout(advanceMockDraft, 1200); // delay between AI picks so you can follow along
   }
 }
 
@@ -3556,7 +3619,7 @@ function resetMockDraft() {
   mockDraft.picks = [];
   saveData();
   renderMockDraft();
-  setTimeout(advanceMockDraft, 200);
+  setTimeout(advanceMockDraft, 800);
 }
 
 function newMockDraft() {
@@ -3631,9 +3694,8 @@ function renderMockBoard(container) {
           const posClass = `pos-${player.pos.toLowerCase()}`;
           if (posTint[player.pos]) cellStyle = ` style="background:${posTint[player.pos]}"`;
           cellContent = `
-            <div class="pick-num">${r}.${String(s).padStart(2, '0')}</div>
+            <div class="pick-num">${r}.${String(s).padStart(2, '0')} <span class="pos-badge ${posClass}" style="font-size:0.5rem;padding:0 0.2rem;margin-left:2px">${player.pos}</span></div>
             <div class="pick-name">${escHtml(player.name)}</div>
-            <div class="pick-pos"><span class="pos-badge ${posClass}" style="font-size:0.55rem;padding:0.05rem 0.3rem">${player.pos}</span></div>
           `;
         }
       } else {
