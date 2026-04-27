@@ -3756,15 +3756,16 @@ function undoMockPick() {
 }
 
 function resetMockDraft() {
-  if (!confirm('Restart this mock draft? All picks will be cleared but settings will be kept. Use "New Draft" to change teams or settings.')) return;
+  if (!mockDraft) { renderMockDraft(); return; }
   mockDraft.picks = [];
+  mockDraft.loggedToHistory = false;
+  mockDraft._showHistory = false;
   saveData();
   renderMockDraft();
   setTimeout(advanceMockDraft, 800);
 }
 
 function newMockDraft() {
-  if (!confirm('Discard this mock draft and start a new setup?')) return;
   mockDraft = null;
   saveData();
   renderMockDraft();
