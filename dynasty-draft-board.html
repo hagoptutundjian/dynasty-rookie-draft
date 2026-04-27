@@ -4200,12 +4200,13 @@ function getConsensusRank(playerId) {
   if (experts.length === 0) return null;
   let totalWeight = 0, weightedSum = 0;
   experts.forEach(e => {
-    const rank = e.rankings[playerId];
     const w = e.weight || 0;
-    if (rank != null && rank > 0 && w > 0) {
-      weightedSum += rank * w;
-      totalWeight += w;
-    }
+    if (w <= 0) return; // skip experts with no weight
+    let rank = e.rankings[playerId];
+    // If this expert didn't rank the player (or ranked them invalid), treat as 49 (waiver-tier)
+    if (rank == null || rank <= 0) rank = 49;
+    weightedSum += rank * w;
+    totalWeight += w;
   });
   if (totalWeight === 0) return null;
   return weightedSum / totalWeight;
