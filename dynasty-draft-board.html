@@ -3889,6 +3889,44 @@ function newMockDraft() {
   renderMockDraft();
 }
 
+function formatPosBias(b) {
+  switch (b) {
+    case 'qb_premium': return 'QB-premium';
+    case 'rb_late': return 'RB-fade';
+    case 'wr_heavy': return 'WR-heavy';
+    default: return 'None';
+  }
+}
+
+function toggleMockAiSettings() {
+  if (!mockDraft) return;
+  mockDraft._aiSettingsCollapsed = !(mockDraft._aiSettingsCollapsed === false);
+  renderMockDraft();
+}
+
+function updateMockVariation(v) {
+  if (!mockDraft) return;
+  mockDraft.variation = parseInt(v) || 0;
+  saveData();
+  // Update the visible label without a full re-render to keep the slider focused
+  const labelTrigger = document.querySelector('button[onclick="toggleMockAiSettings()"]');
+  if (labelTrigger) labelTrigger.innerHTML = `&#9662; AI Settings (Variation: ${mockDraft.variation}%, Bias: ${formatPosBias(mockDraft.posBias)})`;
+}
+
+function updateMockPosBias(b) {
+  if (!mockDraft) return;
+  mockDraft.posBias = b;
+  saveData();
+  renderMockDraft();
+}
+
+function updateMockSource(src) {
+  if (!mockDraft) return;
+  mockDraft.source = src;
+  saveData();
+  renderMockDraft();
+}
+
 function renderMockBoard(container) {
   const totalPicks = mockDraft.rounds * 12;
   const isComplete = mockDraft.picks.length >= totalPicks;
@@ -3997,10 +4035,44 @@ function renderMockBoard(container) {
       ? `<button class="btn btn-outline btn-sm" onclick="skipToNextMyPick()" style="margin-left:auto">Skip Ahead</button>`
       : '';
     const headerText = isYourTurn ? `You're on the clock! Click a player to draft.` : `Best Available`;
+    const aiSettingsCollapsed = mockDraft._aiSettingsCollapsed !== false; // default collapsed
+    const aiSettingsHtml = `
+      <div style="margin-bottom:0.5rem;font-size:0.75rem">
+        <button type="button" onclick="toggleMockAiSettings()" style="background:none;border:none;color:var(--primary-hover);cursor:pointer;font-weight:600;padding:0;font-size:0.75rem">${aiSettingsCollapsed ? '&#9656;' : '&#9662;'} AI Settings (Variation: ${mockDraft.variation}%, Bias: ${formatPosBias(mockDraft.posBias)})</button>
+        ${!aiSettingsCollapsed ? `
+          <div style="display:flex;flex-direction:column;gap:0.4rem;padding:0.6rem;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:0.4rem">
+            <div style="display:flex;align-items:center;gap:0.6rem">
+              <label style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;min-width:65px">Source</label>
+              <select onchange="updateMockSource(this.value)" style="flex:1;padding:0.3rem;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:0.78rem">
+                <option value="consensus" ${mockDraft.source === 'consensus' ? 'selected' : ''}>Weighted Consensus</option>
+                <option value="my" ${mockDraft.source === 'my' ? 'selected' : ''}>My Rankings</option>
+                ${experts.map(ex => `<option value="exp_${ex.id}" ${mockDraft.source === 'exp_' + ex.id ? 'selected' : ''}>${escHtml(ex.name)}</option>`).join('')}
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.6rem">
+              <label style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;min-width:65px">Variation</label>
+              <input type="range" min="0" max="100" step="5" value="${mockDraft.variation}" oninput="updateMockVariation(this.value)" style="flex:1">
+              <span style="font-size:0.78rem;font-weight:700;min-width:36px;text-align:right">${mockDraft.variation}%</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.6rem">
+              <label style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;min-width:65px">Bias</label>
+              <select onchange="updateMockPosBias(this.value)" style="flex:1;padding:0.3rem;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:0.78rem">
+                <option value="none" ${mockDraft.posBias === 'none' ? 'selected' : ''}>None — strict rankings</option>
+                <option value="qb_premium" ${mockDraft.posBias === 'qb_premium' ? 'selected' : ''}>QB-premium</option>
+                <option value="rb_late" ${mockDraft.posBias === 'rb_late' ? 'selected' : ''}>RB-fade</option>
+                <option value="wr_heavy" ${mockDraft.posBias === 'wr_heavy' ? 'selected' : ''}>WR-heavy</option>
+              </select>
+            </div>
+            <div style="font-size:0.65rem;color:var(--text-muted)">Changes apply to the next AI pick onward.</div>
+          </div>
+        ` : ''}
+      </div>
+    `;
     panelHtml = `
       <div class="mock-pick-panel">
         <h3 style="display:flex;align-items:center">${headerText}${skipBtn}</h3>
         ${lastPickHtml}
+        ${aiSettingsHtml}
         <div class="mock-pool">
           ${available.map(p => {
             const posColors = { QB: '#f87171', RB: '#60a5fa', WR: '#4ade80', TE: '#fbbf24' };
