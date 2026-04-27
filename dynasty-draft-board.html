@@ -1224,12 +1224,19 @@ body:not(.is-admin) .admin-only { display: none !important; }
 .mock-pool-row .pick-btn { background: var(--primary); color: white; border: none; padding: 0.3rem 0.7rem; border-radius: var(--radius-sm); font-weight: 700; cursor: pointer; font-size: 0.72rem; }
 .mock-pool-row .pick-btn:hover { background: var(--primary-hover); }
 @media (max-width: 600px) {
-  .mock-board { grid-template-columns: 24px repeat(12, minmax(0, 1fr)); padding: 0.2rem; gap: 1px; }
-  .mock-cell { min-height: 40px; padding: 0.2rem; font-size: 0.55rem; }
-  .mock-cell .pick-num { font-size: 0.45rem; }
-  .mock-cell .pick-team { font-size: 0.5rem; }
-  .mock-cell .pick-name { font-size: 0.58rem; }
-  .mock-board-header { font-size: 0.5rem; padding: 0.15rem 0.05rem; }
+  .mock-board {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    padding: 0.25rem;
+    gap: 2px;
+  }
+  .mock-cell {
+    min-height: 56px;
+    padding: 0.3rem 0.35rem;
+    font-size: 0.6rem;
+  }
+  .mock-cell .pick-num { font-size: 0.55rem; }
+  .mock-cell .pick-team { font-size: 0.6rem; }
+  .mock-cell .pick-name { font-size: 0.7rem; }
 }
 </style>
 </head>
@@ -3872,50 +3879,64 @@ function renderMockBoard(container) {
     TE: 'rgba(245,158,11,0.10)'
   };
 
-  // Build the 4×12 board
-  let boardHtml = '<div class="mock-round-label"></div>'; // top-left empty corner
-  // Header row: shows the team that has each round-1 pick (so trades show correctly)
-  for (let s = 1; s <= 12; s++) {
-    const teamIdx = pickToTeamIndex(s);
-    const teamName = mockDraft.teams[teamIdx] || `Team ${s}`;
-    const isYours = teamIdx === mockDraft.myTeamIndex;
-    boardHtml += `<div class="mock-board-header${isYours ? ' your-team' : ''}" title="${escHtml(teamName)}">${s}. ${escHtml(teamName)}</div>`;
-  }
-  // 4 rows for 4 rounds
-  for (let r = 1; r <= mockDraft.rounds; r++) {
-    boardHtml += `<div class="mock-round-label">R${r}</div>`;
-    for (let s = 1; s <= 12; s++) {
-      let pickNum;
-      if (mockDraft.draftType === 'snake' && r % 2 === 0) {
-        pickNum = (r - 1) * 12 + (12 - s + 1);
-      } else {
-        pickNum = (r - 1) * 12 + s;
-      }
-      const isYours = isMyPick(pickNum);
-      const isOnClock = !isComplete && pickNum === nextPickNum;
-      const made = mockDraft.picks.find(p => p.pickNum === pickNum);
-      const cellTeamIdx = pickToTeamIndex(pickNum);
-      const cellTeamName = isYours ? 'You' : (mockDraft.teams[cellTeamIdx] || `Team ${s}`);
-      let cellContent = '';
-      let cellStyle = '';
-      if (made) {
-        const player = players.find(p => p.id === made.playerId);
-        if (player) {
-          const posClass = `pos-${player.pos.toLowerCase()}`;
-          if (posTint[player.pos]) cellStyle = ` style="background:${posTint[player.pos]}"`;
-          cellContent = `
-            <div class="pick-num">${r}.${String(s).padStart(2, '0')} <span class="pos-badge ${posClass}" style="font-size:0.5rem;padding:0 0.2rem;margin-left:2px">${player.pos}</span></div>
-            <div class="pick-team" title="${escAttr(cellTeamName)}">${escHtml(cellTeamName)}</div>
-            <div class="pick-name">${escHtml(player.name)}</div>
-          `;
-        }
-      } else {
+  // Cell builder used by both desktop and mobile layouts
+  function buildMockCellHtml(pickNum) {
+    const r = Math.ceil(pickNum / 12);
+    const s = pickNum - (r - 1) * 12;
+    const isYours = isMyPick(pickNum);
+    const isOnClock = !isComplete && pickNum === nextPickNum;
+    const made = mockDraft.picks.find(p => p.pickNum === pickNum);
+    const cellTeamIdx = pickToTeamIndex(pickNum);
+    const cellTeamName = isYours ? 'You' : (mockDraft.teams[cellTeamIdx] || `Team ${s}`);
+    let cellContent = '';
+    let cellStyle = '';
+    if (made) {
+      const player = players.find(p => p.id === made.playerId);
+      if (player) {
+        const posClass = `pos-${player.pos.toLowerCase()}`;
+        if (posTint[player.pos]) cellStyle = ` style="background:${posTint[player.pos]}"`;
         cellContent = `
-          <div class="pick-num">${r}.${String(s).padStart(2, '0')}</div>
+          <div class="pick-num">${r}.${String(s).padStart(2, '0')} <span class="pos-badge ${posClass}" style="font-size:0.5rem;padding:0 0.2rem;margin-left:2px">${player.pos}</span></div>
           <div class="pick-team" title="${escAttr(cellTeamName)}">${escHtml(cellTeamName)}</div>
+          <div class="pick-name">${escHtml(player.name)}</div>
         `;
       }
-      boardHtml += `<div class="mock-cell${made ? ' filled' : ''}${isYours ? ' your-pick' : ''}${isOnClock ? ' on-clock' : ''}"${cellStyle}>${cellContent}</div>`;
+    } else {
+      cellContent = `
+        <div class="pick-num">${r}.${String(s).padStart(2, '0')}</div>
+        <div class="pick-team" title="${escAttr(cellTeamName)}">${escHtml(cellTeamName)}</div>
+      `;
+    }
+    return `<div class="mock-cell${made ? ' filled' : ''}${isYours ? ' your-pick' : ''}${isOnClock ? ' on-clock' : ''}"${cellStyle}>${cellContent}</div>`;
+  }
+
+  const isMobile = window.innerWidth <= 600;
+  let boardHtml = '';
+  if (isMobile) {
+    // Mobile: 8 rows × 6 columns, cells rendered in pick-number order (1.01, 1.02, ..., 4.12)
+    for (let pickNum = 1; pickNum <= totalPicks; pickNum++) {
+      boardHtml += buildMockCellHtml(pickNum);
+    }
+  } else {
+    // Desktop: original 4×12 with team header row + round labels
+    boardHtml = '<div class="mock-round-label"></div>'; // top-left empty corner
+    for (let s = 1; s <= 12; s++) {
+      const teamIdx = pickToTeamIndex(s);
+      const teamName = mockDraft.teams[teamIdx] || `Team ${s}`;
+      const isYours = teamIdx === mockDraft.myTeamIndex;
+      boardHtml += `<div class="mock-board-header${isYours ? ' your-team' : ''}" title="${escHtml(teamName)}">${s}. ${escHtml(teamName)}</div>`;
+    }
+    for (let r = 1; r <= mockDraft.rounds; r++) {
+      boardHtml += `<div class="mock-round-label">R${r}</div>`;
+      for (let s = 1; s <= 12; s++) {
+        let pickNum;
+        if (mockDraft.draftType === 'snake' && r % 2 === 0) {
+          pickNum = (r - 1) * 12 + (12 - s + 1);
+        } else {
+          pickNum = (r - 1) * 12 + s;
+        }
+        boardHtml += buildMockCellHtml(pickNum);
+      }
     }
   }
 
