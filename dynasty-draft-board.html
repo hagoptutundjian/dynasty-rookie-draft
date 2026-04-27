@@ -3900,7 +3900,9 @@ function formatPosBias(b) {
 
 function toggleMockAiSettings() {
   if (!mockDraft) return;
-  mockDraft._aiSettingsCollapsed = !(mockDraft._aiSettingsCollapsed === false);
+  // Treat undefined as "collapsed" (true). Flip whatever the current effective state is.
+  const currentlyCollapsed = mockDraft._aiSettingsCollapsed !== false;
+  mockDraft._aiSettingsCollapsed = !currentlyCollapsed;
   renderMockDraft();
 }
 
