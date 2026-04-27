@@ -3204,8 +3204,10 @@ function renderMockSetup(container) {
           <label>Full Draft Order (one team per line, in pick order)</label>
           <textarea id="mock-full-order" placeholder="Line 1 = pick 1.01\nLine 13 = pick 2.01\n... 48 lines total\n\nDuplicate team names are fine (they reflect trades)" style="min-height:280px"></textarea>
           <div class="mock-help">Paste 48 lines, one team name per line. Duplicate names are fine — they reflect traded picks. You can include "1.01 " or "1.05" prefixes; they'll be stripped.</div>
+          <div id="mock-full-summary" style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.5rem"></div>
           <label>Your Team</label>
           <select id="mock-full-my-team"><option value="">(paste order above first)</option></select>
+          <div class="mock-help">Pick count next to each team — verify it matches what you expect.</div>
         </div>
       </div>
       <div class="mock-setup-card">
@@ -3267,40 +3269,65 @@ function renderMockSetup(container) {
   });
   // Live update "Your Team" dropdown as user pastes the full order
   document.getElementById('mock-full-order').addEventListener('input', () => {
-    const teams = parseFullOrderTeams(document.getElementById('mock-full-order').value);
+    const parsed = parseFullOrderTeams(document.getElementById('mock-full-order').value);
     const sel = document.getElementById('mock-full-my-team');
+    const summary = document.getElementById('mock-full-summary');
     const current = sel.value;
     sel.innerHTML = '';
-    if (teams.uniqueTeams.length === 0) {
+    if (parsed.uniqueTeams.length === 0) {
       sel.innerHTML = '<option value="">(paste order above first)</option>';
+      summary.textContent = '';
       return;
     }
-    teams.uniqueTeams.forEach((name, i) => {
+    // Sort dropdown by pick count desc so teams with most picks are at the top
+    const ordered = parsed.uniqueTeams.map((name, i) => ({ name, idx: i, count: parsed.counts[i] }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    ordered.forEach(t => {
       const opt = document.createElement('option');
-      opt.value = i;
-      opt.textContent = name;
+      opt.value = t.idx;
+      opt.textContent = `${t.name} (${t.count} pick${t.count !== 1 ? 's' : ''})`;
       sel.appendChild(opt);
     });
-    if (current && current < teams.uniqueTeams.length) sel.value = current;
+    if (current !== '' && current != null && parseInt(current) < parsed.uniqueTeams.length) sel.value = current;
+    // Summary
+    const total = parsed.lines.length;
+    const teamCount = parsed.uniqueTeams.length;
+    let warning = '';
+    if (total !== 48) warning += ` &#9888; Expected 48 picks, got ${total}.`;
+    if (teamCount !== 12) warning += ` &#9888; Expected 12 unique teams, got ${teamCount}.`;
+    summary.innerHTML = `Parsed: <strong>${total}</strong> picks across <strong>${teamCount}</strong> teams.${warning ? `<span style="color:#ef4444">${warning}</span>` : ''}`;
   });
 }
 
 // Parse a 48-line paste of team names. Strips optional "1.05" or "1. " prefixes.
-// Returns { lines: [teamName per pick], uniqueTeams: [...], teamIndex: [pickNum-1 -> uniqueTeamIdx] }
+// Normalizes whitespace and case for matching so minor differences don't split teams.
 function parseFullOrderTeams(raw) {
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
-    // Strip leading "X.XX" or "X." or "X)" or "X: " prefixes if any
+    // Strip optional leading prefixes like "1.01 ", "5) ", "5: ", "5. "
     return line.replace(/^\d+(\.\d+)?\s*[:.\)]?\s*/, '').trim();
   });
+  // Normalization: lowercase + collapse whitespace + strip outer punctuation for matching
+  function normalize(s) {
+    return s.toLowerCase().replace(/\s+/g, ' ').replace(/^['"\s]+|['"\s]+$/g, '').trim();
+  }
   const uniqueTeams = [];
+  const normMap = new Map(); // normalized name -> uniqueTeams idx
+  const counts = []; // pick count per uniqueTeam
   const teamIndex = [];
   lines.forEach(name => {
-    const lname = name.toLowerCase();
-    let idx = uniqueTeams.findIndex(t => t.toLowerCase() === lname);
-    if (idx === -1) { idx = uniqueTeams.length; uniqueTeams.push(name); }
+    const norm = normalize(name);
+    if (!norm) return;
+    let idx = normMap.get(norm);
+    if (idx == null) {
+      idx = uniqueTeams.length;
+      uniqueTeams.push(name); // keep first-seen casing for display
+      counts.push(0);
+      normMap.set(norm, idx);
+    }
+    counts[idx]++;
     teamIndex.push(idx);
   });
-  return { lines, uniqueTeams, teamIndex };
+  return { lines, uniqueTeams, teamIndex, counts };
 }
 
 function startMockDraft() {
@@ -3345,12 +3372,42 @@ function startMockDraft() {
     draftType = document.getElementById('mock-type').value;
   }
 
+  // Compute the user's picks (for confirmation before launching)
+  const totalPicks = 4 * 12;
+  const myPicks = [];
+  // Use a temporary mockDraft-like object so the helpers work
+  const tmp = { teams, myTeamIndex, myPickNumbers, pickOrder, draftType, rounds: 4 };
+  for (let n = 1; n <= totalPicks; n++) {
+    let isMine;
+    if (myPickNumbers && myPickNumbers.length > 0) {
+      isMine = myPickNumbers.includes(n);
+    } else if (pickOrder && pickOrder.length >= n) {
+      isMine = pickOrder[n - 1] === myTeamIndex;
+    } else {
+      const round = Math.ceil(n / 12);
+      const slot = n - (round - 1) * 12;
+      const idx = (draftType === 'snake' && round % 2 === 0) ? (12 - slot) : (slot - 1);
+      isMine = idx === myTeamIndex;
+    }
+    if (isMine) myPicks.push(n);
+  }
+  const myPickLabels = myPicks.map(n => {
+    const r = Math.ceil(n / 12);
+    const s = n - (r - 1) * 12;
+    return `${r}.${String(s).padStart(2, '0')}`;
+  });
+  const teamLabel = myTeamIndex >= 0 ? teams[myTeamIndex] : 'You';
+  const msg = `You'll be drafting for: ${teamLabel}\n\n` +
+    `Your ${myPicks.length} pick${myPicks.length !== 1 ? 's' : ''}:\n  ${myPickLabels.join(', ')}\n\n` +
+    `The computer will auto-pick for everyone else.\n\nStart the mock draft?`;
+  if (!confirm(msg)) return;
+
   mockDraft = {
     teams,
     rounds: 4,
     myTeamIndex,
     myPickNumbers,
-    pickOrder, // 48-element array of team indices when in 'full' mode, else null
+    pickOrder,
     draftType,
     source,
     variation,
