@@ -1128,22 +1128,22 @@ body:not(.is-admin) .admin-only { display: none !important; }
 }
 .mock-board {
   display: grid;
-  grid-template-columns: 36px repeat(12, minmax(115px, 1fr));
+  grid-template-columns: 28px repeat(12, minmax(0, 1fr));
   gap: 2px;
-  overflow-x: auto;
-  padding: 0.35rem;
+  padding: 0.3rem;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  width: 100%;
 }
 .mock-board-header {
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 700;
   text-align: center;
-  padding: 0.25rem 0.2rem;
+  padding: 0.2rem 0.15rem;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1153,15 +1153,15 @@ body:not(.is-admin) .admin-only { display: none !important; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 700;
   color: var(--text-muted);
 }
 .mock-cell {
   background: var(--surface-2);
   border-radius: 3px;
-  padding: 0.3rem 0.4rem;
-  font-size: 0.66rem;
+  padding: 0.25rem 0.3rem;
+  font-size: 0.64rem;
   min-height: 50px;
   display: flex;
   flex-direction: column;
@@ -1169,6 +1169,7 @@ body:not(.is-admin) .admin-only { display: none !important; }
   position: relative;
   border: 1px solid transparent;
   line-height: 1.2;
+  overflow: hidden;
 }
 .mock-cell.filled { background: var(--surface); border-color: var(--border); }
 .mock-cell.your-pick { border-color: #FFD700; box-shadow: inset 3px 0 0 #FFD700; }
@@ -1181,11 +1182,11 @@ body:not(.is-admin) .admin-only { display: none !important; }
   0%, 100% { box-shadow: 0 0 0 0 rgba(5,150,105,0.5); }
   50% { box-shadow: 0 0 0 4px rgba(5,150,105,0); }
 }
-.mock-cell .pick-num { font-size: 0.55rem; color: var(--text-muted); font-weight: 600; line-height: 1; }
-.mock-cell .pick-team { font-size: 0.58rem; color: var(--text-muted); font-weight: 600; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.85; margin-top: 1px; }
+.mock-cell .pick-num { font-size: 0.52rem; color: var(--text-muted); font-weight: 600; line-height: 1; }
+.mock-cell .pick-team { font-size: 0.55rem; color: var(--text-muted); font-weight: 600; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.85; margin-top: 1px; }
 .mock-cell.your-pick .pick-team { color: #FFD700; opacity: 1; }
-.mock-cell .pick-name { font-weight: 700; line-height: 1.15; font-size: 0.72rem; word-break: break-word; margin-top: 2px; }
-.mock-cell .pick-pos { font-size: 0.55rem; font-weight: 700; opacity: 0.85; line-height: 1; margin-top: 1px; }
+.mock-cell .pick-name { font-weight: 700; line-height: 1.15; font-size: 0.68rem; word-break: break-word; margin-top: 2px; overflow: hidden; }
+.mock-cell .pick-pos { font-size: 0.52rem; font-weight: 700; opacity: 0.85; line-height: 1; margin-top: 1px; }
 
 .mock-pick-panel {
   background: var(--surface);
@@ -1223,10 +1224,12 @@ body:not(.is-admin) .admin-only { display: none !important; }
 .mock-pool-row .pick-btn { background: var(--primary); color: white; border: none; padding: 0.3rem 0.7rem; border-radius: var(--radius-sm); font-weight: 700; cursor: pointer; font-size: 0.72rem; }
 .mock-pool-row .pick-btn:hover { background: var(--primary-hover); }
 @media (max-width: 600px) {
-  .mock-board { grid-template-columns: 36px repeat(12, 90px); }
-  .mock-cell { min-height: 44px; padding: 0.3rem; font-size: 0.65rem; }
-  .mock-cell .pick-num { font-size: 0.55rem; }
-  .mock-cell .pick-name { font-size: 0.7rem; }
+  .mock-board { grid-template-columns: 24px repeat(12, minmax(0, 1fr)); padding: 0.2rem; gap: 1px; }
+  .mock-cell { min-height: 40px; padding: 0.2rem; font-size: 0.55rem; }
+  .mock-cell .pick-num { font-size: 0.45rem; }
+  .mock-cell .pick-team { font-size: 0.5rem; }
+  .mock-cell .pick-name { font-size: 0.58rem; }
+  .mock-board-header { font-size: 0.5rem; padding: 0.15rem 0.05rem; }
 }
 </style>
 </head>
