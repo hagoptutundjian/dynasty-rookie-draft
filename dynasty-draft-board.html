@@ -1128,7 +1128,7 @@ body:not(.is-admin) .admin-only { display: none !important; }
 }
 .mock-board {
   display: grid;
-  grid-template-columns: 36px repeat(12, minmax(96px, 1fr));
+  grid-template-columns: 36px repeat(12, minmax(115px, 1fr));
   gap: 2px;
   overflow-x: auto;
   padding: 0.35rem;
@@ -1160,15 +1160,15 @@ body:not(.is-admin) .admin-only { display: none !important; }
 .mock-cell {
   background: var(--surface-2);
   border-radius: 3px;
-  padding: 0.25rem 0.35rem;
+  padding: 0.3rem 0.4rem;
   font-size: 0.66rem;
-  min-height: 38px;
+  min-height: 50px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   position: relative;
   border: 1px solid transparent;
-  line-height: 1.15;
+  line-height: 1.2;
 }
 .mock-cell.filled { background: var(--surface); border-color: var(--border); }
 .mock-cell.your-pick { border-color: #FFD700; box-shadow: inset 3px 0 0 #FFD700; }
@@ -1182,7 +1182,9 @@ body:not(.is-admin) .admin-only { display: none !important; }
   50% { box-shadow: 0 0 0 4px rgba(5,150,105,0); }
 }
 .mock-cell .pick-num { font-size: 0.55rem; color: var(--text-muted); font-weight: 600; line-height: 1; }
-.mock-cell .pick-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.15; font-size: 0.7rem; }
+.mock-cell .pick-team { font-size: 0.58rem; color: var(--text-muted); font-weight: 600; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.85; margin-top: 1px; }
+.mock-cell.your-pick .pick-team { color: #FFD700; opacity: 1; }
+.mock-cell .pick-name { font-weight: 700; line-height: 1.15; font-size: 0.72rem; word-break: break-word; margin-top: 2px; }
 .mock-cell .pick-pos { font-size: 0.55rem; font-weight: 700; opacity: 0.85; line-height: 1; margin-top: 1px; }
 
 .mock-pick-panel {
@@ -3151,6 +3153,58 @@ function saveMockSetup(patch) {
   localStorage.setItem(MOCK_SETUP_KEY, JSON.stringify(merged));
 }
 
+// ===== Mock draft sound effects =====
+let _audioCtx = null;
+function getAudioCtx() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
+  }
+  return _audioCtx;
+}
+function playPickSound(isUserPick) {
+  if (localStorage.getItem('dynasty_draft_mock_sound') === 'off') return;
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  if (isUserPick) {
+    // Bright two-note chime for the user's pick
+    [880, 1318.51].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const start = ctx.currentTime + i * 0.08;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.18, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.42);
+    });
+  } else {
+    // Short soft ding for AI picks
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 660;
+    const start = ctx.currentTime;
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(0.08, start + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.15);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + 0.17);
+  }
+}
+function toggleMockSound() {
+  const cur = localStorage.getItem('dynasty_draft_mock_sound') === 'off';
+  localStorage.setItem('dynasty_draft_mock_sound', cur ? 'on' : 'off');
+  // Resume audio context (browsers require user interaction first)
+  const ctx = getAudioCtx();
+  if (ctx && ctx.state === 'suspended') ctx.resume();
+  if (cur) playPickSound(false); // preview
+  renderMockDraft();
+}
+
 function defaultTeamNames(n) {
   const out = [];
   for (let i = 1; i <= n; i++) out.push(`Team ${i}`);
@@ -3576,6 +3630,7 @@ function makeAutoPick() {
   mockDraft.picks.push({ pickNum, round, slot, teamIndex, playerId: player.id });
   saveData();
   renderMockDraft();
+  playPickSound(false);
   return true;
 }
 
@@ -3588,6 +3643,7 @@ function makeUserPick(playerId) {
   mockDraft.picks.push({ pickNum, round, slot, teamIndex, playerId });
   saveData();
   renderMockDraft();
+  playPickSound(true);
   setTimeout(advanceMockDraft, 800);
 }
 
@@ -3647,9 +3703,11 @@ function renderMockBoard(container) {
     const onClockTeam = isYourTurn ? 'You' : mockDraft.teams[onClockTeamIdx];
     const round = Math.ceil(nextPickNum / 12);
     const slot = nextPickNum - (round - 1) * 12;
+    const soundOn = localStorage.getItem('dynasty_draft_mock_sound') !== 'off';
     statusHtml = `
       <span>Pick <strong>${round}.${String(slot).padStart(2, '0')}</strong> (#${nextPickNum}/${totalPicks}) &mdash; on the clock: <span class="on-clock${isYourTurn ? ' you' : ''}">${escHtml(onClockTeam)}</span></span>
       <div style="flex:1"></div>
+      <button class="btn btn-outline btn-sm" onclick="toggleMockSound()" title="Toggle pick sounds">${soundOn ? '&#128266; Sound: On' : '&#128263; Sound: Off'}</button>
       <button class="btn btn-outline btn-sm" onclick="undoMockPick()" ${mockDraft.picks.length === 0 ? 'disabled' : ''}>Undo</button>
       <button class="btn btn-outline btn-sm" onclick="resetMockDraft()">Restart</button>
       <button class="btn btn-outline btn-sm" onclick="newMockDraft()">New Setup</button>
@@ -3686,6 +3744,8 @@ function renderMockBoard(container) {
       const isYours = isMyPick(pickNum);
       const isOnClock = !isComplete && pickNum === nextPickNum;
       const made = mockDraft.picks.find(p => p.pickNum === pickNum);
+      const cellTeamIdx = pickToTeamIndex(pickNum);
+      const cellTeamName = isYours ? 'You' : (mockDraft.teams[cellTeamIdx] || `Team ${s}`);
       let cellContent = '';
       let cellStyle = '';
       if (made) {
@@ -3695,43 +3755,63 @@ function renderMockBoard(container) {
           if (posTint[player.pos]) cellStyle = ` style="background:${posTint[player.pos]}"`;
           cellContent = `
             <div class="pick-num">${r}.${String(s).padStart(2, '0')} <span class="pos-badge ${posClass}" style="font-size:0.5rem;padding:0 0.2rem;margin-left:2px">${player.pos}</span></div>
+            <div class="pick-team" title="${escAttr(cellTeamName)}">${escHtml(cellTeamName)}</div>
             <div class="pick-name">${escHtml(player.name)}</div>
           `;
         }
       } else {
-        cellContent = `<div class="pick-num">${r}.${String(s).padStart(2, '0')}</div>`;
+        cellContent = `
+          <div class="pick-num">${r}.${String(s).padStart(2, '0')}</div>
+          <div class="pick-team" title="${escAttr(cellTeamName)}">${escHtml(cellTeamName)}</div>
+        `;
       }
       boardHtml += `<div class="mock-cell${made ? ' filled' : ''}${isYours ? ' your-pick' : ''}${isOnClock ? ' on-clock' : ''}"${cellStyle}>${cellContent}</div>`;
     }
   }
 
-  // Build the pick panel (only when it's user's turn, or summary if complete)
+  // Always show the Best-Player-Available panel during the draft, filtered to undrafted only.
+  // No "computer is picking" message — just show the list updating live as picks come off.
   let panelHtml = '';
-  if (isYourTurn) {
+  if (!isComplete) {
     const drafted = new Set(mockDraft.picks.map(p => p.playerId));
     const available = players.filter(p => !drafted.has(p.id) && !p.drafted)
       .sort((a, b) => a.rank - b.rank)
-      .slice(0, 25);
+      .slice(0, 30);
+    const lastPick = mockDraft.picks.length > 0 ? mockDraft.picks[mockDraft.picks.length - 1] : null;
+    let lastPickHtml = '';
+    if (lastPick) {
+      const player = players.find(p => p.id === lastPick.playerId);
+      const team = lastPick.teamIndex === mockDraft.myTeamIndex ? 'You' : (mockDraft.teams[lastPick.teamIndex] || 'Team');
+      const r = lastPick.round;
+      const s = lastPick.slot;
+      if (player) {
+        lastPickHtml = `<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.2rem"><strong>${r}.${String(s).padStart(2,'0')}</strong> &mdash; ${escHtml(team)} took <strong style="color:var(--text)">${escHtml(player.name)}</strong> <span class="pos-badge pos-${player.pos.toLowerCase()}" style="font-size:0.55rem;padding:0 0.25rem">${player.pos}</span></div>`;
+      }
+    }
+    const skipBtn = !isYourTurn
+      ? `<button class="btn btn-outline btn-sm" onclick="advanceMockDraft()" style="margin-left:auto">Skip Ahead</button>`
+      : '';
+    const headerText = isYourTurn ? `You're on the clock! Click a player to draft.` : `Best Available`;
     panelHtml = `
       <div class="mock-pick-panel">
-        <h3>You're on the clock! Pick a player:</h3>
+        <h3 style="display:flex;align-items:center">${headerText}${skipBtn}</h3>
+        ${lastPickHtml}
         <div class="mock-pool">
           ${available.map(p => {
             const posColors = { QB: '#f87171', RB: '#60a5fa', WR: '#4ade80', TE: '#fbbf24' };
             const pc = posColors[p.pos] || '#94a3b8';
-            return `<div class="mock-pool-row" onclick="makeUserPick(${p.id})">
+            const clickHandler = isYourTurn ? `onclick="makeUserPick(${p.id})"` : '';
+            const draftBtn = isYourTurn ? `<button class="pick-btn" onclick="event.stopPropagation();makeUserPick(${p.id})">Draft</button>` : `<span></span>`;
+            return `<div class="mock-pool-row" ${clickHandler} style="${isYourTurn ? '' : 'cursor:default'}">
               <span class="rank">${p.rank}</span>
               <span class="name">${escHtml(p.name)}</span>
               <span class="pos" style="color:${pc};background:${pc}22">${p.pos}</span>
-              <button class="pick-btn" onclick="event.stopPropagation();makeUserPick(${p.id})">Draft</button>
+              ${draftBtn}
             </div>`;
           }).join('')}
         </div>
-        <div style="font-size:0.7rem;color:var(--text-muted)">Showing top 25 available by your rankings. Use Manage Board search if you want a different player.</div>
       </div>
     `;
-  } else if (!isComplete) {
-    panelHtml = `<div class="mock-pick-panel"><div style="text-align:center;color:var(--text-muted);padding:1rem">Computer is picking... <button class="btn btn-outline btn-sm" onclick="advanceMockDraft()" style="margin-left:0.5rem">Skip Ahead</button></div></div>`;
   }
 
   container.innerHTML = `
