@@ -1071,6 +1071,160 @@ body:not(.is-admin) .admin-only { display: none !important; }
 .filter-btn.tag-bust.active { border-color: var(--tag-bust); color: var(--tag-bust); background: rgba(249,115,22,0.1); }
 .filter-btn.tag-watch.active { border-color: var(--tag-watch); color: var(--tag-watch); background: rgba(59,130,246,0.1); }
 
+/* ===== MOCK DRAFT ===== */
+.mock-setup { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; max-width: 900px; margin: 0 auto; }
+.mock-setup-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+.mock-setup-card h3 { font-size: 0.95rem; margin-bottom: 0.85rem; font-weight: 700; }
+.mock-setup-card label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.mock-setup-card input, .mock-setup-card select, .mock-setup-card textarea {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.88rem;
+  font-family: var(--font);
+  outline: none;
+  margin-bottom: 0.75rem;
+}
+.mock-setup-card textarea { font-family: monospace; font-size: 0.78rem; min-height: 220px; resize: vertical; }
+.mock-setup-actions { grid-column: 1 / -1; display: flex; justify-content: center; gap: 0.75rem; }
+.mock-help { font-size: 0.7rem; color: var(--text-muted); margin-top: -0.4rem; margin-bottom: 0.75rem; line-height: 1.4; }
+@media (max-width: 700px) { .mock-setup { grid-template-columns: 1fr; } }
+
+.mock-draft-view { display: flex; flex-direction: column; gap: 1rem; }
+.mock-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  flex-wrap: wrap;
+}
+.mock-status-bar .on-clock {
+  font-weight: 700;
+  color: var(--primary-hover);
+}
+.mock-status-bar .on-clock.you {
+  color: #FFD700;
+  font-size: 1rem;
+}
+.mock-board {
+  display: grid;
+  grid-template-columns: 50px repeat(12, minmax(120px, 1fr));
+  gap: 4px;
+  overflow-x: auto;
+  padding: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.mock-board-header {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 0.4rem 0.3rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mock-board-header.your-team { color: #FFD700; background: rgba(255,215,0,0.08); border-radius: 4px; }
+.mock-round-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.mock-cell {
+  background: var(--surface-2);
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.72rem;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  border: 1px solid transparent;
+}
+.mock-cell.filled { background: var(--surface); border-color: var(--border); }
+.mock-cell.your-pick { background: rgba(255,215,0,0.1); border-color: #FFD700; }
+.mock-cell.on-clock {
+  border-color: var(--primary);
+  background: rgba(5,150,105,0.1);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(5,150,105,0.5); }
+  50% { box-shadow: 0 0 0 4px rgba(5,150,105,0); }
+}
+.mock-cell .pick-num { font-size: 0.6rem; color: var(--text-muted); font-weight: 600; }
+.mock-cell .pick-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+.mock-cell .pick-pos { font-size: 0.6rem; font-weight: 700; opacity: 0.85; }
+
+.mock-pick-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.mock-pick-panel h3 { font-size: 0.95rem; font-weight: 700; }
+.mock-pool {
+  max-height: 360px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mock-pool-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+.mock-pool-row:hover { background: var(--bg); border-color: var(--primary); }
+.mock-pool-row .rank { font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-align: center; }
+.mock-pool-row .name { font-weight: 600; }
+.mock-pool-row .pos { font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px; }
+.mock-pool-row .pick-btn { background: var(--primary); color: white; border: none; padding: 0.3rem 0.7rem; border-radius: var(--radius-sm); font-weight: 700; cursor: pointer; font-size: 0.72rem; }
+.mock-pool-row .pick-btn:hover { background: var(--primary-hover); }
+@media (max-width: 600px) {
+  .mock-board { grid-template-columns: 36px repeat(12, 90px); }
+  .mock-cell { min-height: 44px; padding: 0.3rem; font-size: 0.65rem; }
+  .mock-cell .pick-num { font-size: 0.55rem; }
+  .mock-cell .pick-name { font-size: 0.7rem; }
+}
 </style>
 </head>
 <body>
@@ -1092,6 +1246,7 @@ body:not(.is-admin) .admin-only { display: none !important; }
   <button class="tab-btn" data-tab="positional">By Position</button>
   <button class="tab-btn" data-tab="consensus">Consensus</button>
   <button class="tab-btn" data-tab="experts">Manage Experts</button>
+  <button class="tab-btn" data-tab="mock">Mock Draft</button>
   <button class="tab-btn admin-only" data-tab="manage">Manage Board</button>
 </nav>
 
@@ -1210,6 +1365,11 @@ body:not(.is-admin) .admin-only { display: none !important; }
       <span id="expert-count" style="color:var(--text-muted);font-size:0.82rem"></span>
     </div>
     <div id="experts-list"></div>
+  </div>
+
+  <!-- ===== MOCK DRAFT TAB ===== -->
+  <div id="tab-mock" class="tab-content">
+    <div id="mock-content"></div>
   </div>
 
   <!-- ===== MANAGE BOARD TAB ===== -->
@@ -1516,8 +1676,10 @@ let players = [];
 let experts = [];
 let myPicks = []; // array of rank numbers, e.g. [34, 39, 43]
 let tierNames = {}; // { 1: "Elite", 2: "Studs", ... }
+let mockDraft = null; // active mock draft state (see resetMockDraft for shape)
 let roomId = null; // unique per user; isolates their Firebase data
 const ROOM_KEY = 'dynasty_draft_room_2026';
+const MOCK_DRAFT_KEY = 'dynasty_draft_mock_2026';
 let nextId = 100;
 let editingPlayerId = null;
 
@@ -1641,6 +1803,8 @@ function loadData() {
   if (picksSaved) myPicks = JSON.parse(picksSaved);
   const tierNamesSaved = localStorage.getItem(TIER_NAMES_KEY);
   if (tierNamesSaved) tierNames = JSON.parse(tierNamesSaved);
+  const mockSaved = localStorage.getItem(MOCK_DRAFT_KEY);
+  if (mockSaved) { try { mockDraft = JSON.parse(mockSaved); } catch (e) { mockDraft = null; } }
   // Theme
   const theme = localStorage.getItem(THEME_KEY) || 'dark';
   document.documentElement.setAttribute('data-theme', theme);
@@ -1653,6 +1817,8 @@ function saveData() {
   localStorage.setItem(EXPERTS_KEY, JSON.stringify(experts));
   localStorage.setItem(MY_PICKS_KEY, JSON.stringify(myPicks));
   localStorage.setItem(TIER_NAMES_KEY, JSON.stringify(tierNames));
+  if (mockDraft) localStorage.setItem(MOCK_DRAFT_KEY, JSON.stringify(mockDraft));
+  else localStorage.removeItem(MOCK_DRAFT_KEY);
 
   // Save to Firebase (cloud sync)
   if (firebaseReady) {
@@ -1802,6 +1968,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'consensus') renderConsensus();
     if (btn.dataset.tab === 'experts') renderExperts();
     if (btn.dataset.tab === 'positional') renderPositional();
+    if (btn.dataset.tab === 'mock') renderMockDraft();
   });
 });
 
@@ -2970,7 +3137,375 @@ function updateExpertWeight(expertId, value) {
 }
 
 // ==========================================
-// CONSENSUS VIEW
+// MOCK DRAFT
+// ==========================================
+
+function defaultTeamNames(n) {
+  const out = [];
+  for (let i = 1; i <= n; i++) out.push(`Team ${i}`);
+  return out;
+}
+
+function renderMockDraft() {
+  const container = document.getElementById('mock-content');
+  if (!mockDraft || !mockDraft.teams || mockDraft.teams.length === 0) {
+    renderMockSetup(container);
+  } else {
+    renderMockBoard(container);
+  }
+}
+
+function renderMockSetup(container) {
+  // Build expert source options
+  const expertOptions = experts.map(ex => `<option value="exp_${ex.id}">${escHtml(ex.name)}</option>`).join('');
+  const teamCount = 12;
+  const placeholderTeams = defaultTeamNames(teamCount).join('\n');
+  container.innerHTML = `
+    <div class="mock-setup">
+      <div class="mock-setup-card">
+        <h3>Draft Order</h3>
+        <label>Team Names (one per line, in pick order)</label>
+        <textarea id="mock-teams" placeholder="${placeholderTeams}">${placeholderTeams}</textarea>
+        <div class="mock-help">Paste your league's draft order, one team per line. Pick 1.01 goes to the team on line 1.</div>
+        <label>Your Team</label>
+        <select id="mock-my-slot"></select>
+        <div class="mock-help">Which slot is yours? You'll manually pick on your turn; everyone else auto-picks.</div>
+        <label>Draft Type</label>
+        <select id="mock-type">
+          <option value="snake" selected>Snake (1-12, then 12-1, ...)</option>
+          <option value="linear">Linear (1-12 every round)</option>
+        </select>
+      </div>
+      <div class="mock-setup-card">
+        <h3>Computer Auto-Pick Settings</h3>
+        <label>Ranking Source</label>
+        <select id="mock-source">
+          <option value="my">My Rankings</option>
+          <option value="consensus">Weighted Consensus</option>
+          ${expertOptions}
+        </select>
+        <div class="mock-help">What rankings should the computer use to make picks?</div>
+        <label>Variation: <span id="mock-variation-label">25</span>%</label>
+        <input type="range" id="mock-variation" min="0" max="100" value="25" step="5">
+        <div class="mock-help">0% = always picks the highest-ranked. Higher = more random / human-like reaches and unexpected picks.</div>
+        <label>Position Tendencies (optional)</label>
+        <select id="mock-pos-bias">
+          <option value="none" selected>None — strict rankings</option>
+          <option value="qb_premium">QB-premium (some teams reach for QBs)</option>
+          <option value="rb_late">RB-fade (teams avoid RBs early)</option>
+          <option value="wr_heavy">WR-heavy (teams favor WRs)</option>
+        </select>
+        <div class="mock-help">Adds positional preferences to simulate league personality.</div>
+      </div>
+      <div class="mock-setup-actions">
+        <button class="btn btn-primary" onclick="startMockDraft()">Start Mock Draft</button>
+      </div>
+    </div>
+  `;
+  // Populate slot dropdown
+  const slotSelect = document.getElementById('mock-my-slot');
+  for (let i = 1; i <= teamCount; i++) {
+    const opt = document.createElement('option');
+    opt.value = i - 1;
+    opt.textContent = `Pick ${i}`;
+    if (i === 1) opt.selected = true;
+    slotSelect.appendChild(opt);
+  }
+  // Variation live label
+  document.getElementById('mock-variation').addEventListener('input', (e) => {
+    document.getElementById('mock-variation-label').textContent = e.target.value;
+  });
+  // When teams textarea changes, update slot dropdown labels
+  document.getElementById('mock-teams').addEventListener('input', () => {
+    const lines = document.getElementById('mock-teams').value.split('\n').map(l => l.trim()).filter(Boolean);
+    const slot = document.getElementById('mock-my-slot');
+    const currentVal = slot.value;
+    slot.innerHTML = '';
+    lines.forEach((name, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `${i + 1}. ${name}`;
+      slot.appendChild(opt);
+    });
+    if (currentVal) slot.value = currentVal;
+  });
+  // Trigger initial slot population from default teams
+  document.getElementById('mock-teams').dispatchEvent(new Event('input'));
+}
+
+function startMockDraft() {
+  const rawTeams = document.getElementById('mock-teams').value.split('\n').map(l => l.trim()).filter(Boolean);
+  if (rawTeams.length !== 12) {
+    alert(`Please enter exactly 12 team names (one per line). You entered ${rawTeams.length}.`);
+    return;
+  }
+  const myTeamIndex = parseInt(document.getElementById('mock-my-slot').value);
+  const draftType = document.getElementById('mock-type').value;
+  const source = document.getElementById('mock-source').value;
+  const variation = parseInt(document.getElementById('mock-variation').value) || 0;
+  const posBias = document.getElementById('mock-pos-bias').value;
+
+  mockDraft = {
+    teams: rawTeams,
+    rounds: 4,
+    myTeamIndex,
+    draftType,
+    source,
+    variation,
+    posBias,
+    picks: [], // {pickNum, round, slot, teamIndex, playerId}
+    started: Date.now()
+  };
+  saveData();
+  renderMockDraft();
+  // Auto-advance for AI picks
+  setTimeout(advanceMockDraft, 200);
+}
+
+function pickToTeamIndex(pickNum) {
+  // pickNum is 1-indexed overall pick number (1-48)
+  const round = Math.ceil(pickNum / 12);
+  const slot = pickNum - (round - 1) * 12; // 1-12 slot in this round
+  if (mockDraft.draftType === 'snake' && round % 2 === 0) {
+    // Reverse order for even rounds
+    return 12 - slot;
+  }
+  return slot - 1; // 0-indexed
+}
+
+function getMockPickRank(playerId) {
+  const src = mockDraft.source;
+  if (src === 'my') {
+    const p = players.find(pp => pp.id === playerId);
+    return p ? p.rank : 999;
+  }
+  if (src === 'consensus') {
+    const r = getConsensusRank(playerId);
+    return r === null ? 999 : r;
+  }
+  if (src.startsWith('exp_')) {
+    const expId = parseInt(src.slice(4));
+    const ex = experts.find(e => e.id === expId);
+    if (!ex) return 999;
+    const r = ex.rankings[playerId];
+    return r != null && r > 0 ? r : 999;
+  }
+  return 999;
+}
+
+function applyPosBias(player, baseRank, currentPick) {
+  const bias = mockDraft.posBias;
+  if (bias === 'none' || !bias) return baseRank;
+  // Some teams have personalities — use teamIndex hash + pick to determine if this team has the bias
+  const teamIdx = pickToTeamIndex(currentPick);
+  const teamPersonalityHash = (teamIdx * 31 + 7) % 12;
+  const hasBias = teamPersonalityHash < 4; // ~33% of teams have the bias
+  if (!hasBias) return baseRank;
+  if (bias === 'qb_premium' && player.pos === 'QB') return baseRank - 4;
+  if (bias === 'rb_late' && player.pos === 'RB' && currentPick <= 24) return baseRank + 6;
+  if (bias === 'wr_heavy' && player.pos === 'WR') return baseRank - 3;
+  return baseRank;
+}
+
+function pickAutoPlayer() {
+  // Get all undrafted players (not in mockDraft.picks)
+  const drafted = new Set(mockDraft.picks.map(p => p.playerId));
+  const available = players.filter(p => !drafted.has(p.id) && !p.drafted);
+  if (available.length === 0) return null;
+  const currentPick = mockDraft.picks.length + 1;
+  // Compute effective rank for each, applying pos bias
+  const ranked = available.map(p => ({
+    player: p,
+    effRank: applyPosBias(p, getMockPickRank(p.id), currentPick)
+  })).sort((a, b) => a.effRank - b.effRank);
+  // Variation 0 = pick top. Variation 100 = wider pool.
+  // Use exponential decay weights for top N candidates.
+  const v = mockDraft.variation || 0;
+  const poolSize = Math.max(1, Math.round(1 + (v / 100) * 14)); // 1 to 15
+  const pool = ranked.slice(0, Math.min(poolSize, ranked.length));
+  // Weights: weight_i = e^(-i / temperature), where temperature scales with variation
+  const temperature = 0.5 + (v / 100) * 5;
+  const weights = pool.map((_, i) => Math.exp(-i / temperature));
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < pool.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return pool[i].player;
+  }
+  return pool[0].player;
+}
+
+function makeAutoPick() {
+  const player = pickAutoPlayer();
+  if (!player) return false;
+  const pickNum = mockDraft.picks.length + 1;
+  const round = Math.ceil(pickNum / 12);
+  const slot = pickNum - (round - 1) * 12;
+  const teamIndex = pickToTeamIndex(pickNum);
+  mockDraft.picks.push({ pickNum, round, slot, teamIndex, playerId: player.id });
+  saveData();
+  renderMockDraft();
+  return true;
+}
+
+function makeUserPick(playerId) {
+  const pickNum = mockDraft.picks.length + 1;
+  const round = Math.ceil(pickNum / 12);
+  const slot = pickNum - (round - 1) * 12;
+  const teamIndex = pickToTeamIndex(pickNum);
+  if (teamIndex !== mockDraft.myTeamIndex) return;
+  mockDraft.picks.push({ pickNum, round, slot, teamIndex, playerId });
+  saveData();
+  renderMockDraft();
+  setTimeout(advanceMockDraft, 200);
+}
+
+function advanceMockDraft() {
+  if (!mockDraft) return;
+  const totalPicks = mockDraft.rounds * 12;
+  if (mockDraft.picks.length >= totalPicks) return; // done
+  const nextPickNum = mockDraft.picks.length + 1;
+  const nextTeamIdx = pickToTeamIndex(nextPickNum);
+  if (nextTeamIdx === mockDraft.myTeamIndex) {
+    // It's the user's turn — render and wait
+    renderMockDraft();
+    return;
+  }
+  // AI's turn
+  if (makeAutoPick()) {
+    setTimeout(advanceMockDraft, 250); // brief delay between AI picks
+  }
+}
+
+function undoMockPick() {
+  if (!mockDraft || mockDraft.picks.length === 0) return;
+  mockDraft.picks.pop();
+  saveData();
+  renderMockDraft();
+}
+
+function resetMockDraft() {
+  if (!confirm('Restart this mock draft? All picks will be cleared but settings will be kept. Use "New Draft" to change teams or settings.')) return;
+  mockDraft.picks = [];
+  saveData();
+  renderMockDraft();
+  setTimeout(advanceMockDraft, 200);
+}
+
+function newMockDraft() {
+  if (!confirm('Discard this mock draft and start a new setup?')) return;
+  mockDraft = null;
+  saveData();
+  renderMockDraft();
+}
+
+function renderMockBoard(container) {
+  const totalPicks = mockDraft.rounds * 12;
+  const isComplete = mockDraft.picks.length >= totalPicks;
+  const nextPickNum = mockDraft.picks.length + 1;
+  const onClockTeamIdx = isComplete ? null : pickToTeamIndex(nextPickNum);
+  const isYourTurn = onClockTeamIdx === mockDraft.myTeamIndex;
+  const yourTeamName = mockDraft.teams[mockDraft.myTeamIndex];
+
+  // Build status bar
+  let statusHtml = '';
+  if (isComplete) {
+    statusHtml = `<span style="font-weight:700">&#127942; Mock draft complete!</span>
+      <button class="btn btn-outline btn-sm" onclick="resetMockDraft()">Restart</button>
+      <button class="btn btn-outline btn-sm" onclick="newMockDraft()">New Draft</button>`;
+  } else {
+    const onClockTeam = mockDraft.teams[onClockTeamIdx];
+    const round = Math.ceil(nextPickNum / 12);
+    const slot = nextPickNum - (round - 1) * 12;
+    statusHtml = `
+      <span>Pick <strong>${round}.${String(slot).padStart(2, '0')}</strong> (#${nextPickNum}/${totalPicks}) &mdash; on the clock: <span class="on-clock${isYourTurn ? ' you' : ''}">${escHtml(onClockTeam)}${isYourTurn ? ' (You)' : ''}</span></span>
+      <div style="flex:1"></div>
+      <button class="btn btn-outline btn-sm" onclick="undoMockPick()" ${mockDraft.picks.length === 0 ? 'disabled' : ''}>Undo</button>
+      <button class="btn btn-outline btn-sm" onclick="resetMockDraft()">Restart</button>
+      <button class="btn btn-outline btn-sm" onclick="newMockDraft()">New Setup</button>
+    `;
+  }
+
+  // Build the 4×12 board
+  let boardHtml = '<div class="mock-round-label"></div>'; // top-left empty corner
+  // Header row: team names (in pick order for round 1)
+  for (let slot = 0; slot < 12; slot++) {
+    const isYours = slot === mockDraft.myTeamIndex;
+    boardHtml += `<div class="mock-board-header${isYours ? ' your-team' : ''}" title="${escHtml(mockDraft.teams[slot])}">${slot + 1}. ${escHtml(mockDraft.teams[slot])}</div>`;
+  }
+  // 4 rows for 4 rounds
+  for (let r = 1; r <= mockDraft.rounds; r++) {
+    boardHtml += `<div class="mock-round-label">R${r}</div>`;
+    for (let s = 1; s <= 12; s++) {
+      // Determine the pick number at row r, slot s (column = slot 1-12)
+      // For snake even rounds, slot s actually corresponds to team (12 - s + 1) in pick order
+      let pickNum;
+      if (mockDraft.draftType === 'snake' && r % 2 === 0) {
+        pickNum = (r - 1) * 12 + (12 - s + 1);
+      } else {
+        pickNum = (r - 1) * 12 + s;
+      }
+      const teamIdx = pickToTeamIndex(pickNum);
+      const isYours = teamIdx === mockDraft.myTeamIndex;
+      const isOnClock = !isComplete && pickNum === nextPickNum;
+      const made = mockDraft.picks.find(p => p.pickNum === pickNum);
+      let cellContent = '';
+      if (made) {
+        const player = players.find(p => p.id === made.playerId);
+        if (player) {
+          const posClass = `pos-${player.pos.toLowerCase()}`;
+          cellContent = `
+            <div class="pick-num">${r}.${String(s).padStart(2, '0')}</div>
+            <div class="pick-name">${escHtml(player.name)}</div>
+            <div class="pick-pos"><span class="pos-badge ${posClass}" style="font-size:0.55rem;padding:0.05rem 0.3rem">${player.pos}</span></div>
+          `;
+        }
+      } else {
+        cellContent = `<div class="pick-num">${r}.${String(s).padStart(2, '0')}</div>`;
+      }
+      boardHtml += `<div class="mock-cell${made ? ' filled' : ''}${isYours ? ' your-pick' : ''}${isOnClock ? ' on-clock' : ''}">${cellContent}</div>`;
+    }
+  }
+
+  // Build the pick panel (only when it's user's turn, or summary if complete)
+  let panelHtml = '';
+  if (isYourTurn) {
+    const drafted = new Set(mockDraft.picks.map(p => p.playerId));
+    const available = players.filter(p => !drafted.has(p.id) && !p.drafted)
+      .sort((a, b) => a.rank - b.rank)
+      .slice(0, 25);
+    panelHtml = `
+      <div class="mock-pick-panel">
+        <h3>You're on the clock! Pick a player:</h3>
+        <div class="mock-pool">
+          ${available.map(p => {
+            const posColors = { QB: '#f87171', RB: '#60a5fa', WR: '#4ade80', TE: '#fbbf24' };
+            const pc = posColors[p.pos] || '#94a3b8';
+            return `<div class="mock-pool-row" onclick="makeUserPick(${p.id})">
+              <span class="rank">${p.rank}</span>
+              <span class="name">${escHtml(p.name)}</span>
+              <span class="pos" style="color:${pc};background:${pc}22">${p.pos}</span>
+              <button class="pick-btn" onclick="event.stopPropagation();makeUserPick(${p.id})">Draft</button>
+            </div>`;
+          }).join('')}
+        </div>
+        <div style="font-size:0.7rem;color:var(--text-muted)">Showing top 25 available by your rankings. Use Manage Board search if you want a different player.</div>
+      </div>
+    `;
+  } else if (!isComplete) {
+    panelHtml = `<div class="mock-pick-panel"><div style="text-align:center;color:var(--text-muted);padding:1rem">Computer is picking... <button class="btn btn-outline btn-sm" onclick="advanceMockDraft()" style="margin-left:0.5rem">Skip Ahead</button></div></div>`;
+  }
+
+  container.innerHTML = `
+    <div class="mock-draft-view">
+      <div class="mock-status-bar">${statusHtml}</div>
+      <div class="mock-board">${boardHtml}</div>
+      ${panelHtml}
+    </div>
+  `;
+}
+
+// CONSENSUS VIEW (continued below)
 // ==========================================
 function getConsensusRank(playerId) {
   if (experts.length === 0) return null;
