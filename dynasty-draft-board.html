@@ -1687,6 +1687,7 @@ let roomId = null; // unique per user; isolates their Firebase data
 const ROOM_KEY = 'dynasty_draft_room_2026';
 const MOCK_DRAFT_KEY = 'dynasty_draft_mock_2026';
 const MOCK_SETUP_KEY = 'dynasty_draft_mock_setup_2026';
+const MOCK_HISTORY_KEY = 'dynasty_draft_mock_history_2026';
 let nextId = 100;
 let editingPlayerId = null;
 
@@ -3156,6 +3157,48 @@ function saveMockSetup(patch) {
   localStorage.setItem(MOCK_SETUP_KEY, JSON.stringify(merged));
 }
 
+function loadMockHistory() {
+  try { return JSON.parse(localStorage.getItem(MOCK_HISTORY_KEY) || '[]'); } catch (e) { return []; }
+}
+function saveMockHistory(history) {
+  localStorage.setItem(MOCK_HISTORY_KEY, JSON.stringify(history));
+}
+function logCompletedDraft() {
+  if (!mockDraft) return;
+  const myEntries = mockDraft.picks.filter(p => isMyPick(p.pickNum)).map(p => {
+    const player = players.find(pl => pl.id === p.playerId);
+    return {
+      pickNum: p.pickNum,
+      playerId: p.playerId,
+      name: player ? player.name : 'Unknown',
+      pos: player ? player.pos : '?'
+    };
+  });
+  if (myEntries.length === 0) return;
+  const history = loadMockHistory();
+  history.unshift({
+    completedAt: Date.now(),
+    settings: { source: mockDraft.source, variation: mockDraft.variation, posBias: mockDraft.posBias },
+    myPicks: myEntries
+  });
+  // Cap at 200 to keep storage reasonable
+  if (history.length > 200) history.length = 200;
+  saveMockHistory(history);
+}
+function clearMockHistory() {
+  if (!confirm('Clear all mock draft history? This cannot be undone.')) return;
+  localStorage.removeItem(MOCK_HISTORY_KEY);
+  renderMockDraft();
+}
+
+// Show history on the setup screen (when there's no active draft)
+function showHistoryStandalone() {
+  const wrap = document.getElementById('mock-history-standalone');
+  if (!wrap) return;
+  if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `<div style="margin-top:1rem">${renderMockHistoryHtml()}</div>`;
+}
+
 // ===== Mock draft sound effects =====
 let _audioCtx = null;
 function getAudioCtx() {
@@ -3302,7 +3345,9 @@ function renderMockSetup(container) {
       </div>
       <div class="mock-setup-actions">
         <button class="btn btn-primary" onclick="startMockDraft()">Start Mock Draft</button>
+        ${loadMockHistory().length > 0 ? `<button class="btn btn-outline" onclick="showHistoryStandalone()">&#128202; View History (${loadMockHistory().length} drafts)</button>` : ''}
       </div>
+      <div id="mock-history-standalone"></div>
     </div>
   `;
   const slotSelect = document.getElementById('mock-my-slot');
@@ -3653,7 +3698,16 @@ function makeUserPick(playerId) {
 function advanceMockDraft() {
   if (!mockDraft) return;
   const totalPicks = mockDraft.rounds * 12;
-  if (mockDraft.picks.length >= totalPicks) return; // done
+  if (mockDraft.picks.length >= totalPicks) {
+    // Draft just completed — log to history (idempotent: only if not already logged)
+    if (!mockDraft.loggedToHistory) {
+      mockDraft.loggedToHistory = true;
+      logCompletedDraft();
+      saveData();
+      renderMockDraft();
+    }
+    return;
+  }
   const nextPickNum = mockDraft.picks.length + 1;
   if (isMyPick(nextPickNum)) {
     // It's the user's turn — render and wait
@@ -3699,6 +3753,7 @@ function renderMockBoard(container) {
   if (isComplete) {
     statusHtml = `<span style="font-weight:700">&#127942; Mock draft complete!</span>
       <div style="flex:1"></div>
+      <button class="btn btn-outline btn-sm" onclick="toggleMockHistoryView()">&#128202; History</button>
       <button class="btn btn-outline btn-sm" onclick="resetMockDraft()">Restart</button>
       <button class="btn btn-outline btn-sm" onclick="newMockDraft()">New Draft</button>`;
   } else {
@@ -3711,6 +3766,7 @@ function renderMockBoard(container) {
       <span>Pick <strong>${round}.${String(slot).padStart(2, '0')}</strong> (#${nextPickNum}/${totalPicks}) &mdash; on the clock: <span class="on-clock${isYourTurn ? ' you' : ''}">${escHtml(onClockTeam)}</span></span>
       <div style="flex:1"></div>
       <button class="btn btn-outline btn-sm" onclick="toggleMockSound()" title="Toggle pick sounds">${soundOn ? '&#128266; Sound: On' : '&#128263; Sound: Off'}</button>
+      <button class="btn btn-outline btn-sm" onclick="toggleMockHistoryView()" title="View historical mock draft stats">&#128202; History</button>
       <button class="btn btn-outline btn-sm" onclick="undoMockPick()" ${mockDraft.picks.length === 0 ? 'disabled' : ''}>Undo</button>
       <button class="btn btn-outline btn-sm" onclick="resetMockDraft()">Restart</button>
       <button class="btn btn-outline btn-sm" onclick="newMockDraft()">New Setup</button>
@@ -3817,13 +3873,114 @@ function renderMockBoard(container) {
     `;
   }
 
+  // History panel (shown if toggled)
+  const historyHtml = mockDraft._showHistory ? renderMockHistoryHtml() : '';
+
   container.innerHTML = `
     <div class="mock-draft-view">
       <div class="mock-status-bar">${statusHtml}</div>
       <div class="mock-board">${boardHtml}</div>
+      ${historyHtml}
       ${panelHtml}
     </div>
   `;
+}
+
+function toggleMockHistoryView() {
+  if (!mockDraft) return;
+  mockDraft._showHistory = !mockDraft._showHistory;
+  renderMockDraft();
+}
+
+function renderMockHistoryHtml() {
+  const history = loadMockHistory();
+  if (history.length === 0) {
+    return `<div class="mock-pick-panel">
+      <h3 style="display:flex;align-items:center">&#128202; Mock Draft History</h3>
+      <div style="color:var(--text-muted);text-align:center;padding:1.2rem">No completed drafts logged yet. Run a draft to completion and stats will appear here.</div>
+    </div>`;
+  }
+  // Aggregate per-player frequencies
+  const playerStats = {}; // playerId -> { name, pos, count, pickNums: {pickNum: count} }
+  history.forEach(h => {
+    h.myPicks.forEach(p => {
+      if (!playerStats[p.playerId]) {
+        playerStats[p.playerId] = { name: p.name, pos: p.pos, count: 0, pickNums: {} };
+      }
+      playerStats[p.playerId].count++;
+      playerStats[p.playerId].pickNums[p.pickNum] = (playerStats[p.playerId].pickNums[p.pickNum] || 0) + 1;
+    });
+  });
+  const totalDrafts = history.length;
+  const topPlayers = Object.values(playerStats)
+    .map(s => ({ ...s, pct: (s.count / totalDrafts) * 100 }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 25);
+
+  // Per-pick breakdown
+  const pickStats = {}; // pickNum -> { players: { name -> count } }
+  history.forEach(h => {
+    h.myPicks.forEach(p => {
+      if (!pickStats[p.pickNum]) pickStats[p.pickNum] = {};
+      pickStats[p.pickNum][p.name] = (pickStats[p.pickNum][p.name] || 0) + 1;
+    });
+  });
+  const pickNumsSorted = Object.keys(pickStats).map(Number).sort((a, b) => a - b);
+  const pickBreakdownHtml = pickNumsSorted.map(pn => {
+    const r = Math.ceil(pn / 12);
+    const s = pn - (r - 1) * 12;
+    const label = `${r}.${String(s).padStart(2, '0')}`;
+    const top = Object.entries(pickStats[pn]).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const totalAtPick = Object.values(pickStats[pn]).reduce((a, b) => a + b, 0);
+    return `<div style="margin-bottom:0.6rem">
+      <div style="font-size:0.8rem;font-weight:700;color:var(--primary-hover);margin-bottom:0.25rem">Pick ${label} <span style="color:var(--text-muted);font-weight:500;font-size:0.7rem">(${totalAtPick} drafts)</span></div>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        ${top.map(([name, c]) => {
+          const pct = (c / totalAtPick) * 100;
+          return `<div style="display:flex;align-items:center;gap:0.5rem;font-size:0.75rem">
+            <span style="flex:1">${escHtml(name)}</span>
+            <span style="color:var(--text-muted);min-width:55px;text-align:right">${pct.toFixed(0)}% <span style="font-size:0.65rem">(${c})</span></span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Top players table
+  const topRowsHtml = topPlayers.map(s => {
+    const posColors = { QB: '#f87171', RB: '#60a5fa', WR: '#4ade80', TE: '#fbbf24' };
+    const pc = posColors[s.pos] || '#94a3b8';
+    return `<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:0.6rem;align-items:center;padding:0.3rem 0.5rem;border-bottom:1px solid var(--border);font-size:0.8rem">
+      <span style="font-weight:600">${escHtml(s.name)}</span>
+      <span style="font-size:0.65rem;font-weight:700;padding:0.05rem 0.3rem;border-radius:3px;color:${pc};background:${pc}22">${s.pos}</span>
+      <span style="font-size:0.72rem;color:var(--text-muted);min-width:60px;text-align:right">${s.count}/${totalDrafts}</span>
+      <span style="font-weight:700;min-width:50px;text-align:right;color:var(--primary-hover)">${s.pct.toFixed(0)}%</span>
+    </div>`;
+  }).join('');
+
+  return `<div class="mock-pick-panel">
+    <h3 style="display:flex;align-items:center">&#128202; Mock Draft History
+      <span style="margin-left:auto;font-size:0.78rem;font-weight:500;color:var(--text-muted)">${totalDrafts} draft${totalDrafts !== 1 ? 's' : ''} logged</span>
+      <button class="btn btn-danger btn-sm" onclick="clearMockHistory()" style="margin-left:0.5rem">Clear</button>
+    </h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+      <div>
+        <h4 style="font-size:0.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.5rem">Most Drafted by You</h4>
+        <div style="background:var(--surface-2);border-radius:var(--radius-sm);overflow:hidden">
+          ${topRowsHtml}
+        </div>
+      </div>
+      <div>
+        <h4 style="font-size:0.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.5rem">By Pick Position</h4>
+        <div style="max-height:380px;overflow-y:auto;padding:0.5rem;background:var(--surface-2);border-radius:var(--radius-sm)">
+          ${pickBreakdownHtml}
+        </div>
+      </div>
+    </div>
+    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.5rem">
+      Stats reflect ${totalDrafts} completed draft${totalDrafts !== 1 ? 's' : ''}. Run more drafts (Restart) for stronger probabilities.
+    </div>
+  </div>`;
 }
 
 // CONSENSUS VIEW (continued below)
