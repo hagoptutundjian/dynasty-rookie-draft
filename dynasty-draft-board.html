@@ -3960,13 +3960,7 @@ function renderMockBoard(container) {
   }
 
   // 4×12 board (same on desktop and mobile; mobile gets horizontal scroll via CSS)
-  let boardHtml = '<div class="mock-round-label"></div>'; // top-left empty corner
-  for (let s = 1; s <= 12; s++) {
-    const teamIdx = pickToTeamIndex(s);
-    const teamName = mockDraft.teams[teamIdx] || `Team ${s}`;
-    const isYours = teamIdx === mockDraft.myTeamIndex;
-    boardHtml += `<div class="mock-board-header${isYours ? ' your-team' : ''}" title="${escHtml(teamName)}">${s}. ${escHtml(teamName)}</div>`;
-  }
+  let boardHtml = '';
   for (let r = 1; r <= mockDraft.rounds; r++) {
     boardHtml += `<div class="mock-round-label">R${r}</div>`;
     for (let s = 1; s <= 12; s++) {
