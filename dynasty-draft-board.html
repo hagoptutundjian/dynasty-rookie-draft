@@ -4325,8 +4325,8 @@ function renderPositional() {
       <div class="pos-column-header">${pos} <span class="count">${posPlayers.length}</span></div>
       <div>
         ${posPlayers.length === 0 ? '<div class="no-results">None</div>' : posPlayers.map((p, i) => {
-          const draftStr = p.draftPick || p.draftTeam
-            ? ` <span style="font-size:0.65rem;color:var(--primary-hover)">${escHtml(p.draftPick)}${p.draftPick && p.draftTeam ? ' ' : ''}${escHtml(p.draftTeam)}</span>` : '';
+          const draftStr = p.draftPick
+            ? ` <span style="font-size:0.65rem;color:var(--primary-hover)">${escHtml(p.draftPick)}</span>` : '';
           const prevTier = i > 0 ? posPlayers[i - 1].tier : null;
           const tierBreak = p.tier !== prevTier ? `<div class="pos-tier-break${p.tier === bestAvailTier ? ' best-available' : ''}">T${p.tier}</div>` : '';
           return `${tierBreak}<div class="pos-player-row${p.drafted ? ' drafted' : ''}${p.tier === bestAvailTier ? ' best-avail-tier' : ''}">
