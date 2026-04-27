@@ -3157,6 +3157,53 @@ function saveMockSetup(patch) {
   localStorage.setItem(MOCK_SETUP_KEY, JSON.stringify(merged));
 }
 
+// Publish the current full-order draft order to a shared Firebase path so league members can auto-load it
+function publishMockDraftOrder() {
+  const raw = (document.getElementById('mock-full-order')?.value || '').trim();
+  if (!raw) { alert('Paste your league\'s draft order first.'); return; }
+  const parsed = parseFullOrderTeams(raw);
+  if (parsed.lines.length !== 48) {
+    if (!confirm(`Draft order has ${parsed.lines.length} lines (expected 48). Publish anyway?`)) return;
+  }
+  const btn = document.getElementById('mock-publish-order-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Publishing...'; }
+  db.ref('leagueMock/2026').set({
+    draftOrder: raw,
+    teamCount: parsed.uniqueTeams.length,
+    pickCount: parsed.lines.length,
+    publishedAt: Date.now()
+  }).then(() => {
+    if (btn) { btn.textContent = 'Published!'; setTimeout(() => { btn.textContent = '📢 Share with League'; btn.disabled = false; }, 1500); }
+  }).catch(err => {
+    alert('Could not publish: ' + err.message + '\n\nIf this says "permission denied", add "leagueMock" to your Firebase rules.');
+    if (btn) { btn.textContent = '📢 Share with League'; btn.disabled = false; }
+  });
+}
+
+// Pull the shared draft order from Firebase (used to auto-fill for league members)
+async function fetchSharedDraftOrder() {
+  try {
+    const snap = await db.ref('leagueMock/2026').once('value');
+    return snap.val();
+  } catch (e) { return null; }
+}
+
+function loadSharedDraftOrder() {
+  const btn = document.getElementById('mock-load-shared-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+  fetchSharedDraftOrder().then(data => {
+    if (data && data.draftOrder) {
+      document.getElementById('mock-full-order').value = data.draftOrder;
+      document.getElementById('mock-full-order').dispatchEvent(new Event('input'));
+      saveMockSetup({ fullOrder: data.draftOrder });
+      if (btn) { btn.textContent = 'Loaded!'; setTimeout(() => { btn.textContent = '⬇️ Load League Order'; btn.disabled = false; }, 1500); }
+    } else {
+      alert('No league-shared draft order found. Ask the admin to publish one first.');
+      if (btn) { btn.textContent = '⬇️ Load League Order'; btn.disabled = false; }
+    }
+  });
+}
+
 function loadMockHistory() {
   try { return JSON.parse(localStorage.getItem(MOCK_HISTORY_KEY) || '[]'); } catch (e) { return []; }
 }
@@ -3316,6 +3363,10 @@ function renderMockSetup(container) {
           <label>Full Draft Order (one team per line, in pick order)</label>
           <textarea id="mock-full-order" placeholder="Line 1 = pick 1.01\nLine 13 = pick 2.01\n... 48 lines total\n\nDuplicate team names are fine (they reflect trades)" style="min-height:280px">${saved.fullOrder ? escHtml(saved.fullOrder) : ''}</textarea>
           <div class="mock-help">Paste 48 lines, one team name per line. Duplicate names are fine — they reflect traded picks. You can include "1.01 " or "1.05" prefixes; they'll be stripped.</div>
+          <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm admin-only" type="button" id="mock-publish-order-btn" onclick="publishMockDraftOrder()">&#128226; Share with League</button>
+            <button class="btn btn-outline btn-sm" type="button" id="mock-load-shared-btn" onclick="loadSharedDraftOrder()">&#11015;&#65039; Load League Order</button>
+          </div>
           <div id="mock-full-summary" style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.5rem"></div>
           <label>Your Team</label>
           <select id="mock-full-my-team"><option value="">(paste order above first)</option></select>
@@ -3438,7 +3489,18 @@ function renderMockSetup(container) {
   document.getElementById('mock-mode').addEventListener('change', (e) => saveMockSetup({ mode: e.target.value }));
 
   // Initial population of full-mode dropdown if there's saved content
-  if (saved.fullOrder) refreshFullDropdown(saved.fullTeamName);
+  if (saved.fullOrder) {
+    refreshFullDropdown(saved.fullTeamName);
+  } else {
+    // No saved order — try to auto-load the league's shared one
+    fetchSharedDraftOrder().then(data => {
+      if (data && data.draftOrder && !document.getElementById('mock-full-order').value.trim()) {
+        document.getElementById('mock-full-order').value = data.draftOrder;
+        document.getElementById('mock-full-order').dispatchEvent(new Event('input'));
+        saveMockSetup({ fullOrder: data.draftOrder });
+      }
+    });
+  }
   // Restore AI settings
   if (saved.source) document.getElementById('mock-source').value = saved.source;
   if (saved.variation != null) {
