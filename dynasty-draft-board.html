@@ -4094,6 +4094,8 @@ function renderMockBoard(container) {
   const isYourTurn = !isComplete && isMyPick(nextPickNum);
   // The user can also be picking if manualMode is on or one-off override is active
   const userPicking = !isComplete && (isYourTurn || mockDraft.manualMode || mockDraft._manualOverride);
+  // On-clock team index lives at the function scope so both the status bar and BPA panel can use it
+  const onClockTeamIdx = !isComplete ? pickToTeamIndex(nextPickNum) : null;
 
   // Build status bar
   let statusHtml = '';
@@ -4104,7 +4106,6 @@ function renderMockBoard(container) {
       <button class="btn btn-outline btn-sm" onclick="resetMockDraft()">Restart</button>
       <button class="btn btn-outline btn-sm" onclick="newMockDraft()">New Draft</button>`;
   } else {
-    const onClockTeamIdx = pickToTeamIndex(nextPickNum);
     const onClockTeam = isYourTurn ? 'You' : mockDraft.teams[onClockTeamIdx];
     const round = Math.ceil(nextPickNum / 12);
     const slot = nextPickNum - (round - 1) * 12;
