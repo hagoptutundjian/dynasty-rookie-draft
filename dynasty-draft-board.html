@@ -3880,36 +3880,56 @@ function pickAutoPlayer() {
   const available = players.filter(p => !drafted.has(p.id) && !p.drafted);
   if (available.length === 0) return null;
   const currentPick = mockDraft.picks.length + 1;
+  const round = Math.ceil(currentPick / 12);
   // Compute effective rank for each, applying pos bias
   const ranked = available.map(p => ({
     player: p,
+    rawRank: getMockPickRank(p.id),
     effRank: applyPosBias(p, getMockPickRank(p.id), currentPick)
   })).sort((a, b) => a.effRank - b.effRank);
-  // Variation 0 = pick top. Variation 100 = wider pool.
-  // Use exponential decay weights for top N candidates.
-  const v = mockDraft.variation || 0;
+  // Variation ramps with round depth — later rounds get more random
+  // Round 1: +0% boost, Round 2: +8%, Round 3: +16%, Round 4: +25%
+  const baseV = mockDraft.variation || 0;
+  const roundBoost = (round - 1) * 8 + (round >= 4 ? 5 : 0);
+  const v = Math.min(100, baseV + roundBoost);
+  // Pool size grows with effective variation
   const poolSize = Math.max(1, Math.round(1 + (v / 100) * 14)); // 1 to 15
   const pool = ranked.slice(0, Math.min(poolSize, ranked.length));
-  // Weights: weight_i = e^(-i / temperature), where temperature scales with variation
+  // Exponential decay weights — temperature scales with variation
   const temperature = 0.5 + (v / 100) * 5;
   const weights = pool.map((_, i) => Math.exp(-i / temperature));
   const total = weights.reduce((a, b) => a + b, 0);
   let r = Math.random() * total;
+  let chosenIdx = 0;
   for (let i = 0; i < pool.length; i++) {
     r -= weights[i];
-    if (r <= 0) return pool[i].player;
+    if (r <= 0) { chosenIdx = i; break; }
   }
-  return pool[0].player;
+  const chosen = pool[chosenIdx];
+  // Build a reason string for tooltip explaining why this player was picked
+  let reason;
+  if (chosenIdx === 0 && pool.length === 1) {
+    reason = `Best available — only candidate in pool.`;
+  } else if (chosenIdx === 0) {
+    reason = `Top of pool (rank ${chosen.rawRank} in ${formatSourceLabel(mockDraft.source)}).`;
+  } else {
+    reason = `Picked #${chosenIdx + 1} of top ${pool.length} candidates (variation ${v}%${roundBoost > 0 ? ', round ramp +' + roundBoost + '%' : ''}). Source rank: ${chosen.rawRank}.`;
+  }
+  if (mockDraft.posBias && mockDraft.posBias !== 'none') {
+    reason += ` Bias: ${formatPosBias(mockDraft.posBias)}.`;
+  }
+  return { player: chosen.player, reason };
 }
 
 function makeAutoPick() {
-  const player = pickAutoPlayer();
-  if (!player) return false;
+  const result = pickAutoPlayer();
+  if (!result) return false;
+  const { player, reason } = result;
   const pickNum = mockDraft.picks.length + 1;
   const round = Math.ceil(pickNum / 12);
   const slot = pickNum - (round - 1) * 12;
   const teamIndex = pickToTeamIndex(pickNum);
-  mockDraft.picks.push({ pickNum, round, slot, teamIndex, playerId: player.id });
+  mockDraft.picks.push({ pickNum, round, slot, teamIndex, playerId: player.id, reason });
   saveData();
   renderMockDraft();
   playPickSound(false);
@@ -3921,12 +3941,30 @@ function makeUserPick(playerId) {
   const round = Math.ceil(pickNum / 12);
   const slot = pickNum - (round - 1) * 12;
   const teamIndex = pickToTeamIndex(pickNum);
-  if (!isMyPick(pickNum)) return;
+  // Allow if it's the user's own pick, or manual mode is on, or one-off override is active
+  const isOwn = isMyPick(pickNum);
+  if (!isOwn && !mockDraft.manualMode && !mockDraft._manualOverride) return;
   mockDraft.picks.push({ pickNum, round, slot, teamIndex, playerId });
+  // Clear one-off override flag after using it
+  if (mockDraft._manualOverride) mockDraft._manualOverride = false;
   saveData();
   renderMockDraft();
-  playPickSound(true);
+  playPickSound(isOwn);
   setTimeout(advanceMockDraft, 800);
+}
+
+function takeOverPick() {
+  if (!mockDraft) return;
+  mockDraft._manualOverride = true;
+  saveData();
+  renderMockDraft();
+}
+
+function toggleManualMode() {
+  if (!mockDraft) return;
+  mockDraft.manualMode = !mockDraft.manualMode;
+  saveData();
+  renderMockDraft();
 }
 
 function skipToNextMyPick() {
@@ -3937,13 +3975,13 @@ function skipToNextMyPick() {
   let safety = 100;
   while (mockDraft.picks.length < totalPicks && safety-- > 0) {
     const nextPickNum = mockDraft.picks.length + 1;
-    if (isMyPick(nextPickNum)) break;
-    const player = pickAutoPlayer();
-    if (!player) break;
+    if (isMyPick(nextPickNum) || mockDraft.manualMode || mockDraft._manualOverride) break;
+    const result = pickAutoPlayer();
+    if (!result) break;
     const round = Math.ceil(nextPickNum / 12);
     const slot = nextPickNum - (round - 1) * 12;
     const teamIndex = pickToTeamIndex(nextPickNum);
-    mockDraft.picks.push({ pickNum: nextPickNum, round, slot, teamIndex, playerId: player.id });
+    mockDraft.picks.push({ pickNum: nextPickNum, round, slot, teamIndex, playerId: result.player.id, reason: result.reason });
   }
   // Single sound + save + render at the end
   saveData();
@@ -3971,8 +4009,8 @@ function advanceMockDraft() {
     return;
   }
   const nextPickNum = mockDraft.picks.length + 1;
-  if (isMyPick(nextPickNum)) {
-    // It's the user's turn — render and wait
+  // Stop for manual input if: it's user's pick, manual mode is on, or override flag is set
+  if (isMyPick(nextPickNum) || mockDraft.manualMode || mockDraft._manualOverride) {
     renderMockDraft();
     return;
   }
@@ -4050,6 +4088,8 @@ function renderMockBoard(container) {
   const isComplete = mockDraft.picks.length >= totalPicks;
   const nextPickNum = mockDraft.picks.length + 1;
   const isYourTurn = !isComplete && isMyPick(nextPickNum);
+  // The user can also be picking if manualMode is on or one-off override is active
+  const userPicking = !isComplete && (isYourTurn || mockDraft.manualMode || mockDraft._manualOverride);
 
   // Build status bar
   let statusHtml = '';
@@ -4112,7 +4152,16 @@ function renderMockBoard(container) {
         <div class="pick-team" title="${escAttr(cellTeamName)}">${escHtml(cellTeamName)}</div>
       `;
     }
-    return `<div class="mock-cell${made ? ' filled' : ''}${isYours ? ' your-pick' : ''}${isOnClock ? ' on-clock' : ''}"${cellStyle}>${cellContent}</div>`;
+    // Build a tooltip showing the AI reasoning for filled cells
+    let cellTitle = '';
+    if (made) {
+      const player = players.find(p => p.id === made.playerId);
+      const teamLabel = isYours ? 'You' : cellTeamName;
+      const playerName = player ? player.name : '?';
+      const reasonText = made.reason ? `\n${made.reason}` : '';
+      cellTitle = ` title="${escAttr(`${r}.${String(s).padStart(2, '0')} — ${teamLabel} took ${playerName}${reasonText}`)}"`;
+    }
+    return `<div class="mock-cell${made ? ' filled' : ''}${isYours ? ' your-pick' : ''}${isOnClock ? ' on-clock' : ''}"${cellStyle}${cellTitle}>${cellContent}</div>`;
   }
 
   // 4×12 board (same on desktop and mobile; mobile gets horizontal scroll via CSS)
@@ -4149,21 +4198,39 @@ function renderMockBoard(container) {
         lastPickHtml = `<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.2rem"><strong>${r}.${String(s).padStart(2,'0')}</strong> &mdash; ${escHtml(team)} took <strong style="color:var(--text)">${escHtml(player.name)}</strong> <span class="pos-badge pos-${player.pos.toLowerCase()}" style="font-size:0.55rem;padding:0 0.25rem">${player.pos}</span></div>`;
       }
     }
-    const skipBtn = !isYourTurn
-      ? `<button class="btn btn-outline btn-sm" onclick="skipToNextMyPick()" style="margin-left:auto">Skip Ahead</button>`
-      : '';
-    const headerText = isYourTurn ? `You're on the clock! Click a player to draft.` : `Best Available`;
+    // Right-side buttons: vary based on state
+    let actionBtns = '<div style="margin-left:auto;display:flex;gap:0.4rem">';
+    if (!userPicking) {
+      // AI is on the clock — offer to take it over for this pick or skip ahead
+      actionBtns += `<button class="btn btn-outline btn-sm" onclick="takeOverPick()">&#9994;&#65039; Pick for ${escHtml(mockDraft.teams[onClockTeamIdx] || 'Team')}</button>`;
+      actionBtns += `<button class="btn btn-outline btn-sm" onclick="skipToNextMyPick()">Skip Ahead</button>`;
+    }
+    // Always show Manual Mode toggle so the user can switch between modes
+    const manualOn = !!mockDraft.manualMode;
+    actionBtns += `<button class="btn btn-outline btn-sm" onclick="toggleManualMode()" title="${manualOn ? 'Disable manual mode (AI picks again)' : 'Enable manual mode (you pick for every team)'}">${manualOn ? '&#9989; Manual Mode' : 'Manual Mode'}</button>`;
+    actionBtns += '</div>';
+
+    let headerText;
+    if (isYourTurn) {
+      headerText = `You're on the clock! Click a player to draft.`;
+    } else if (mockDraft._manualOverride) {
+      headerText = `Picking for <strong>${escHtml(mockDraft.teams[onClockTeamIdx] || 'Team')}</strong> &mdash; click a player`;
+    } else if (mockDraft.manualMode) {
+      headerText = `Manual mode &mdash; pick for <strong>${escHtml(mockDraft.teams[onClockTeamIdx] || 'Team')}</strong>`;
+    } else {
+      headerText = `Best Available`;
+    }
     panelHtml = `
       <div class="mock-pick-panel">
-        <h3 style="display:flex;align-items:center">${headerText}${skipBtn}</h3>
+        <h3 style="display:flex;align-items:center;flex-wrap:wrap;gap:0.5rem">${headerText}${actionBtns}</h3>
         ${lastPickHtml}
         <div class="mock-pool">
           ${available.map(p => {
             const posColors = { QB: '#f87171', RB: '#60a5fa', WR: '#4ade80', TE: '#fbbf24' };
             const pc = posColors[p.pos] || '#94a3b8';
-            const clickHandler = isYourTurn ? `onclick="makeUserPick(${p.id})"` : '';
-            const draftBtn = isYourTurn ? `<button class="pick-btn" onclick="event.stopPropagation();makeUserPick(${p.id})">Draft</button>` : `<span></span>`;
-            return `<div class="mock-pool-row" ${clickHandler} style="${isYourTurn ? '' : 'cursor:default'}">
+            const clickHandler = userPicking ? `onclick="makeUserPick(${p.id})"` : '';
+            const draftBtn = userPicking ? `<button class="pick-btn" onclick="event.stopPropagation();makeUserPick(${p.id})">Draft</button>` : `<span></span>`;
+            return `<div class="mock-pool-row" ${clickHandler} style="${userPicking ? '' : 'cursor:default'}">
               <span class="rank">${p.rank}</span>
               <span class="name">${escHtml(p.name)}</span>
               <span class="pos" style="color:${pc};background:${pc}22">${p.pos}</span>
