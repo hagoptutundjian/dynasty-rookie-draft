@@ -14,6 +14,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <style>
 /* ==========================================
    THEME VARIABLES
@@ -455,6 +456,8 @@ body:not(.is-admin) .admin-only { display: none !important; }
 .player-row:active { cursor: grabbing; }
 .player-row.dragging { opacity: 0.4; background: var(--surface-2); }
 .player-row.drag-over { border-top: 2px solid var(--primary); }
+.player-row.sortable-chosen { background: var(--surface-2); box-shadow: 0 4px 12px rgba(0,0,0,0.18); }
+.sortable-ghost { opacity: 0.5; }
 
 .player-rank {
   font-size: 1rem;
@@ -2187,13 +2190,78 @@ function renderRankings() {
   `;
   }).join('');
 
-  container.querySelectorAll('.player-row').forEach(row => {
-    row.addEventListener('dragstart', onDragStart);
-    row.addEventListener('dragend', onDragEnd);
-    row.addEventListener('dragover', onDragOver);
-    row.addEventListener('dragleave', onDragLeave);
-    row.addEventListener('drop', onDrop);
-  });
+  // Initialize SortableJS on each tier-body (works on both mouse and touch).
+  // Replaces the HTML5 native drag/drop which is broken on Android/iOS.
+  if (typeof Sortable !== 'undefined') {
+    container.querySelectorAll('.tier-body').forEach(tierBody => {
+      Sortable.create(tierBody, {
+        group: 'rankings',
+        animation: 140,
+        ghostClass: 'dragging',
+        chosenClass: 'sortable-chosen',
+        // Use a long-press delay on touch so taps and scrolls don't trigger drag
+        delay: 200,
+        delayOnTouchOnly: true,
+        touchStartThreshold: 4,
+        // Don't initiate drag from interactive controls inside the row
+        filter: '.move-btn, .move-arrows, .drafted-toggle, .btn-icon, .player-note-input, .draft-input, .rank-number, .tier-break-inserter, input, button, select, textarea',
+        preventOnFilter: false,
+        onEnd: function(evt) {
+          handleSortableReorder(evt);
+        }
+      });
+    });
+  } else {
+    // Fallback: native HTML5 drag/drop (desktop only)
+    container.querySelectorAll('.player-row').forEach(row => {
+      row.addEventListener('dragstart', onDragStart);
+      row.addEventListener('dragend', onDragEnd);
+      row.addEventListener('dragover', onDragOver);
+      row.addEventListener('dragleave', onDragLeave);
+      row.addEventListener('drop', onDrop);
+    });
+  }
+}
+
+function handleSortableReorder(evt) {
+  const movedId = parseInt(evt.item.dataset.id);
+  if (!movedId) return;
+  const moved = players.find(p => p.id === movedId);
+  if (!moved) return;
+  // Find the next sibling .player-row (skip non-row elements like tier breaks)
+  let nextEl = evt.item.nextElementSibling;
+  let nextId = null;
+  while (nextEl) {
+    if (nextEl.classList && nextEl.classList.contains('player-row') && nextEl.dataset.id) {
+      nextId = parseInt(nextEl.dataset.id);
+      break;
+    }
+    nextEl = nextEl.nextElementSibling;
+  }
+  // Determine tier from the section it landed in
+  const tierEl = evt.item.closest('.tier-section');
+  const newTier = tierEl ? tierEl.dataset.tier : null;
+  pushUndo();
+  // Remove moved player from current position in array
+  const idx = players.findIndex(p => p.id === movedId);
+  if (idx === -1) return;
+  players.splice(idx, 1);
+  // Find target insertion index based on the next sibling's id
+  let insertIdx;
+  if (nextId == null) {
+    insertIdx = players.length;
+  } else {
+    insertIdx = players.findIndex(p => p.id === nextId);
+    if (insertIdx === -1) insertIdx = players.length;
+  }
+  players.splice(insertIdx, 0, moved);
+  // Update tier (only if it crossed boundaries; waiver = special, keep tier as-is)
+  if (newTier && newTier !== 'waiver') {
+    moved.tier = parseInt(newTier);
+  }
+  recalcRanks();
+  saveData();
+  renderRankings();
 }
 
 function escHtml(str) {
