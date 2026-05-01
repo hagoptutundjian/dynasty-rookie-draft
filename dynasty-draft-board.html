@@ -373,19 +373,18 @@ body:not(.is-admin) .admin-only { display: none !important; }
 .tier-break-inserter:hover::after { opacity: 1; }
 .tier-merge-btn {
   margin-left: auto;
-  background: rgba(255,255,255,0.15);
-  border: 1px solid rgba(255,255,255,0.2);
-  color: white;
-  font-size: 0.62rem;
-  font-weight: 700;
-  padding: 0.15rem 0.5rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.18rem 0.55rem;
   border-radius: 4px;
   cursor: pointer;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  transition: background 0.15s;
+  letter-spacing: 0.02em;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.tier-merge-btn:hover { background: rgba(255,255,255,0.3); }
+.tier-merge-btn:hover { background: var(--surface); border-color: var(--text-muted); color: var(--text); }
 .tier-label { outline: none; }
 .tier-label-edit {
   cursor: text;
@@ -394,8 +393,8 @@ body:not(.is-admin) .admin-only { display: none !important; }
   margin-left: -0.3rem;
   transition: background 0.15s;
 }
-.tier-label-edit:hover { background: rgba(255,255,255,0.15); }
-.tier-label-edit:focus { background: rgba(255,255,255,0.25); }
+.tier-label-edit:hover { background: var(--surface); }
+.tier-label-edit:focus { background: var(--surface); box-shadow: 0 0 0 2px var(--primary); }
 .tier-section {
   margin-bottom: 1rem;
   border-radius: var(--radius);
@@ -407,37 +406,37 @@ body:not(.is-admin) .admin-only { display: none !important; }
 }
 [data-theme="dark"] .tier-section { box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
 .tier-header {
-  padding: 0.6rem 1.25rem;
+  padding: 0.65rem 1.1rem;
   font-size: 0.78rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.01em;
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  color: white;
+  color: var(--text);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--tier1);
 }
 .tier-header .tier-count {
-  font-size: 0.62rem;
-  font-weight: 600;
-  opacity: 0.85;
-  background: rgba(255,255,255,0.18);
-  padding: 0.12rem 0.55rem;
-  border-radius: 10px;
-  letter-spacing: 0.02em;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0;
 }
-.tier-1 .tier-header { background: var(--tier1); }
-.tier-2 .tier-header { background: var(--tier2); }
-.tier-3 .tier-header { background: var(--tier3); }
-.tier-4 .tier-header { background: var(--tier4); }
-.tier-5 .tier-header { background: var(--tier5); }
-.tier-6 .tier-header { background: #0d9488; }
-.tier-7 .tier-header { background: #0f766e; }
-.tier-8 .tier-header { background: #115e59; }
-.tier-9 .tier-header { background: #134e4a; }
-.tier-10 .tier-header { background: #1a3a38; }
-.tier-11 .tier-header { background: #6b7280; }
-.tier-waiver .tier-header { background: #6b7280; }
+/* Tier accent on left border only — keeps header text readable, hierarchy via thin colored stripe */
+.tier-1 .tier-header { border-left-color: var(--tier1); }
+.tier-2 .tier-header { border-left-color: var(--tier2); }
+.tier-3 .tier-header { border-left-color: var(--tier3); }
+.tier-4 .tier-header { border-left-color: var(--tier4); }
+.tier-5 .tier-header { border-left-color: var(--tier5); }
+.tier-6 .tier-header { border-left-color: #0d9488; }
+.tier-7 .tier-header { border-left-color: #0f766e; }
+.tier-8 .tier-header { border-left-color: #115e59; }
+.tier-9 .tier-header { border-left-color: #134e4a; }
+.tier-10 .tier-header { border-left-color: #1a3a38; }
+.tier-11 .tier-header { border-left-color: #6b7280; }
+.tier-waiver .tier-header { border-left-color: #6b7280; }
 
 /* === PLAYER ROW === */
 .player-row {
