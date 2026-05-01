@@ -3964,6 +3964,14 @@ function takeOverPick() {
   renderMockDraft();
 }
 
+function toggleMockPause() {
+  if (!mockDraft) return;
+  mockDraft.paused = !mockDraft.paused;
+  saveData();
+  renderMockDraft();
+  if (!mockDraft.paused) setTimeout(advanceMockDraft, 200);
+}
+
 function toggleManualMode() {
   if (!mockDraft) return;
   mockDraft.manualMode = !mockDraft.manualMode;
@@ -3979,7 +3987,7 @@ function skipToNextMyPick() {
   let safety = 100;
   while (mockDraft.picks.length < totalPicks && safety-- > 0) {
     const nextPickNum = mockDraft.picks.length + 1;
-    if (isMyPick(nextPickNum) || mockDraft.manualMode || mockDraft._manualOverride) break;
+    if (mockDraft.paused || isMyPick(nextPickNum) || mockDraft.manualMode || mockDraft._manualOverride) break;
     const result = pickAutoPlayer();
     if (!result) break;
     const round = Math.ceil(nextPickNum / 12);
@@ -4013,8 +4021,8 @@ function advanceMockDraft() {
     return;
   }
   const nextPickNum = mockDraft.picks.length + 1;
-  // Stop for manual input if: it's user's pick, manual mode is on, or override flag is set
-  if (isMyPick(nextPickNum) || mockDraft.manualMode || mockDraft._manualOverride) {
+  // Stop for manual input if: it's user's pick, manual mode is on, override flag is set, or draft is paused
+  if (mockDraft.paused || isMyPick(nextPickNum) || mockDraft.manualMode || mockDraft._manualOverride) {
     renderMockDraft();
     return;
   }
@@ -4113,6 +4121,7 @@ function renderMockBoard(container) {
     statusHtml = `
       <span>Pick <strong>${round}.${String(slot).padStart(2, '0')}</strong> (#${nextPickNum}/${totalPicks}) &mdash; on the clock: <span class="on-clock${isYourTurn ? ' you' : ''}">${escHtml(onClockTeam)}</span></span>
       <div style="flex:1"></div>
+      <button class="btn btn-outline btn-sm" onclick="toggleMockPause()" title="${mockDraft.paused ? 'Resume the draft' : 'Pause auto AI picks'}">${mockDraft.paused ? '&#9654;&#65039; Resume' : '&#9208;&#65039; Pause'}</button>
       <button class="btn btn-outline btn-sm" onclick="toggleMockSound()" title="Toggle pick sounds">${soundOn ? '&#128266; Sound: On' : '&#128263; Sound: Off'}</button>
       <button class="btn btn-outline btn-sm" onclick="toggleMockHistoryView()" title="View historical mock draft stats">&#128202; History</button>
       <button class="btn btn-outline btn-sm" onclick="undoMockPick()" ${mockDraft.picks.length === 0 ? 'disabled' : ''}>Undo</button>
