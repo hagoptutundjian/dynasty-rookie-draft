@@ -3506,7 +3506,7 @@ function renderMockSetup(container) {
         <label>Mode</label>
         <select id="mock-mode">
           <option value="full" ${(saved.mode || 'full') === 'full' ? 'selected' : ''}>Full Draft Order — Paste all 48 picks with team names</option>
-          <option value="standard" ${saved.mode === 'standard' ? 'selected' : ''}>Standard — Snake/Linear from a draft slot</option>
+          <option value="standard" ${saved.mode === 'standard' ? 'selected' : ''}>Standard — Pick a draft slot (linear order)</option>
           <option value="custom" ${saved.mode === 'custom' ? 'selected' : ''}>My Picks — Specify exactly which picks are mine</option>
         </select>
         <div class="mock-help">Default mode lets you paste your league's actual draft order (with traded picks) and see all team names on the board.</div>
@@ -3517,11 +3517,7 @@ function renderMockSetup(container) {
           <div class="mock-help">Paste your league's round 1 draft order, one team per line. Pick 1.01 goes to line 1.</div>
           <label>Your Team</label>
           <select id="mock-my-slot"></select>
-          <label>Draft Type</label>
-          <select id="mock-type">
-            <option value="linear" selected>Linear (1-12 every round)</option>
-            <option value="snake">Snake (1-12, then 12-1, ...)</option>
-          </select>
+          <input type="hidden" id="mock-type" value="linear">
         </div>
 
         <div id="mock-custom-fields" style="display:none">
@@ -3550,7 +3546,20 @@ function renderMockSetup(container) {
         </div>
       </div>
       <div class="mock-setup-card">
-        <h3>Computer Auto-Pick Settings</h3>
+        <h3>League & AI Settings</h3>
+        <label>Rounds</label>
+        <select id="mock-rounds">
+          <option value="3" ${saved.rounds === 3 ? 'selected' : ''}>3 rounds (36 picks)</option>
+          <option value="4" ${(saved.rounds || 4) === 4 ? 'selected' : ''}>4 rounds (48 picks)</option>
+        </select>
+        <div class="mock-help">Always 12 teams, linear draft order (no snake).</div>
+        <label>League Type</label>
+        <select id="mock-league-type">
+          <option value="default" ${(saved.leagueType || 'default') === 'default' ? 'selected' : ''}>Default — no QB adjustment</option>
+          <option value="standard" ${saved.leagueType === 'standard' ? 'selected' : ''}>Standard (1 QB) — QBs less valuable</option>
+          <option value="superflex" ${saved.leagueType === 'superflex' ? 'selected' : ''}>Superflex (2 QB) — QBs more valuable</option>
+        </select>
+        <div class="mock-help">Adjusts how the AI values QBs based on your league's roster format.</div>
         <label>Ranking Source</label>
         <select id="mock-source">
           <option value="consensus" selected>Weighted Consensus</option>
@@ -3663,6 +3672,8 @@ function renderMockSetup(container) {
   document.getElementById('mock-variation').addEventListener('change', (e) => saveMockSetup({ variation: parseInt(e.target.value) || 0 }));
   document.getElementById('mock-pos-bias').addEventListener('change', (e) => saveMockSetup({ posBias: e.target.value }));
   document.getElementById('mock-mode').addEventListener('change', (e) => saveMockSetup({ mode: e.target.value }));
+  document.getElementById('mock-rounds').addEventListener('change', (e) => saveMockSetup({ rounds: parseInt(e.target.value) || 4 }));
+  document.getElementById('mock-league-type').addEventListener('change', (e) => saveMockSetup({ leagueType: e.target.value }));
 
   // Initial population of full-mode dropdown if there's saved content
   if (saved.fullOrder) {
@@ -3738,6 +3749,10 @@ function startMockDraft() {
   const source = document.getElementById('mock-source').value;
   const variation = parseInt(document.getElementById('mock-variation').value) || 0;
   const posBias = document.getElementById('mock-pos-bias').value;
+  const leagueType = document.getElementById('mock-league-type')?.value || 'default';
+  const teamCount = 12; // always 12-team rookie draft
+  const rounds = Math.max(1, Math.min(10, parseInt(document.getElementById('mock-rounds')?.value) || 4));
+  const totalPicks = teamCount * rounds;
 
   let teams, myTeamIndex, draftType, myPickNumbers = null, pickOrder = null;
 
@@ -3747,39 +3762,36 @@ function startMockDraft() {
     const tokens = raw.split(/[,\s]+/).filter(Boolean);
     const ranks = [];
     const invalid = [];
-    tokens.forEach(t => { const r = pickStringToRank(t); if (r && r >= 1 && r <= 48) ranks.push(r); else invalid.push(t); });
-    if (invalid.length > 0) { alert(`Couldn't parse: ${invalid.join(', ')}\nUse round.pick format like "1.05" or "4.11"`); return; }
+    tokens.forEach(t => { const r = pickStringToRank(t); if (r && r >= 1 && r <= totalPicks) ranks.push(r); else invalid.push(t); });
+    if (invalid.length > 0) { alert(`Couldn't parse: ${invalid.join(', ')}\nUse round.pick format like "1.05". Picks must be within ${rounds} rounds × ${teamCount} teams.`); return; }
     if (ranks.length === 0) { alert('No valid picks entered.'); return; }
     myPickNumbers = [...new Set(ranks)].sort((a, b) => a - b);
-    teams = defaultTeamNames(12);
+    teams = defaultTeamNames(teamCount);
     teams[0] = 'You';
     myTeamIndex = -1;
     draftType = 'linear';
   } else if (mode === 'full') {
     const raw = document.getElementById('mock-full-order').value;
     const parsed = parseFullOrderTeams(raw);
-    if (parsed.lines.length !== 48) {
-      alert(`Need exactly 48 picks (one team per line). You entered ${parsed.lines.length}.`);
+    if (parsed.lines.length !== totalPicks) {
+      alert(`Need exactly ${totalPicks} picks (${teamCount} teams × ${rounds} rounds). You entered ${parsed.lines.length}.`);
       return;
     }
     teams = parsed.uniqueTeams;
-    pickOrder = parsed.teamIndex; // 48-element array, each = team idx in `teams`
+    pickOrder = parsed.teamIndex;
     const myTeamSel = document.getElementById('mock-full-my-team').value;
     if (myTeamSel === '' || myTeamSel == null) { alert('Choose your team from the dropdown.'); return; }
     myTeamIndex = parseInt(myTeamSel);
-    draftType = 'linear'; // pickOrder takes precedence; this is only used as fallback
+    draftType = 'linear';
   } else {
     teams = document.getElementById('mock-teams').value.split('\n').map(l => l.trim()).filter(Boolean);
-    if (teams.length !== 12) { alert(`Please enter exactly 12 team names (one per line). You entered ${teams.length}.`); return; }
+    if (teams.length !== teamCount) { alert(`Please enter exactly ${teamCount} team names (one per line). You entered ${teams.length}.`); return; }
     myTeamIndex = parseInt(document.getElementById('mock-my-slot').value);
     draftType = document.getElementById('mock-type').value;
   }
 
   // Compute the user's picks (for confirmation before launching)
-  const totalPicks = 4 * 12;
   const myPicks = [];
-  // Use a temporary mockDraft-like object so the helpers work
-  const tmp = { teams, myTeamIndex, myPickNumbers, pickOrder, draftType, rounds: 4 };
   for (let n = 1; n <= totalPicks; n++) {
     let isMine;
     if (myPickNumbers && myPickNumbers.length > 0) {
@@ -3787,16 +3799,16 @@ function startMockDraft() {
     } else if (pickOrder && pickOrder.length >= n) {
       isMine = pickOrder[n - 1] === myTeamIndex;
     } else {
-      const round = Math.ceil(n / 12);
-      const slot = n - (round - 1) * 12;
-      const idx = (draftType === 'snake' && round % 2 === 0) ? (12 - slot) : (slot - 1);
+      const round = Math.ceil(n / teamCount);
+      const slot = n - (round - 1) * teamCount;
+      const idx = (draftType === 'snake' && round % 2 === 0) ? (teamCount - slot) : (slot - 1);
       isMine = idx === myTeamIndex;
     }
     if (isMine) myPicks.push(n);
   }
   const myPickLabels = myPicks.map(n => {
-    const r = Math.ceil(n / 12);
-    const s = n - (r - 1) * 12;
+    const r = Math.ceil(n / teamCount);
+    const s = n - (r - 1) * teamCount;
     return `${r}.${String(s).padStart(2, '0')}`;
   });
   const teamLabel = myTeamIndex >= 0 ? teams[myTeamIndex] : 'You';
@@ -3807,7 +3819,8 @@ function startMockDraft() {
 
   mockDraft = {
     teams,
-    rounds: 4,
+    teamCount,
+    rounds,
     myTeamIndex,
     myPickNumbers,
     pickOrder,
@@ -3815,6 +3828,7 @@ function startMockDraft() {
     source,
     variation,
     posBias,
+    leagueType,
     picks: [],
     started: Date.now()
   };
@@ -3836,10 +3850,11 @@ function pickToTeamIndex(pickNum) {
   if (mockDraft.pickOrder && mockDraft.pickOrder.length >= pickNum) {
     return mockDraft.pickOrder[pickNum - 1];
   }
-  const round = Math.ceil(pickNum / 12);
-  const slot = pickNum - (round - 1) * 12;
+  const tc = mockDraft.teamCount || 12;
+  const round = Math.ceil(pickNum / tc);
+  const slot = pickNum - (round - 1) * tc;
   if (mockDraft.draftType === 'snake' && round % 2 === 0) {
-    return 12 - slot;
+    return tc - slot;
   }
   return slot - 1;
 }
@@ -3878,19 +3893,32 @@ function applyPosBias(player, baseRank, currentPick) {
   return baseRank;
 }
 
+// Adjust QB ranks based on league type (1QB / superflex / default).
+// Standard (1 QB) leagues: QBs are less valuable → push them DOWN by ~8 spots.
+// Superflex (2 QB) leagues: QBs are more valuable → pull them UP by ~3 spots.
+function applyLeagueAdjustment(player, rank) {
+  if (!mockDraft.leagueType || mockDraft.leagueType === 'default') return rank;
+  if (player.pos !== 'QB') return rank;
+  if (mockDraft.leagueType === 'standard') return rank + 8;
+  if (mockDraft.leagueType === 'superflex') return Math.max(1, rank - 3);
+  return rank;
+}
+
 function pickAutoPlayer() {
   // Get all undrafted players (not in mockDraft.picks)
   const drafted = new Set(mockDraft.picks.map(p => p.playerId));
   const available = players.filter(p => !drafted.has(p.id) && !p.drafted);
   if (available.length === 0) return null;
   const currentPick = mockDraft.picks.length + 1;
-  const round = Math.ceil(currentPick / 12);
-  // Compute effective rank for each, applying pos bias
-  const ranked = available.map(p => ({
-    player: p,
-    rawRank: getMockPickRank(p.id),
-    effRank: applyPosBias(p, getMockPickRank(p.id), currentPick)
-  })).sort((a, b) => a.effRank - b.effRank);
+  const tc = mockDraft.teamCount || 12;
+  const round = Math.ceil(currentPick / tc);
+  // Compute effective rank for each, applying pos bias and league-type adjustment
+  const ranked = available.map(p => {
+    let r = getMockPickRank(p.id);
+    r = applyPosBias(p, r, currentPick);
+    r = applyLeagueAdjustment(p, r);
+    return { player: p, rawRank: getMockPickRank(p.id), effRank: r };
+  }).sort((a, b) => a.effRank - b.effRank);
   // Variation ramps with round depth — later rounds get more random
   // Round 1: +0% boost, Round 2: +8%, Round 3: +16%, Round 4: +25%
   const baseV = mockDraft.variation || 0;
@@ -4095,6 +4123,13 @@ function updateMockSource(src) {
   renderMockDraft();
 }
 
+function updateMockLeagueType(t) {
+  if (!mockDraft) return;
+  mockDraft.leagueType = t;
+  saveData();
+  renderMockDraft();
+}
+
 function renderMockBoard(container) {
   const totalPicks = mockDraft.rounds * 12;
   const isComplete = mockDraft.picks.length >= totalPicks;
@@ -4278,6 +4313,14 @@ function renderMockBoard(container) {
             <label style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;min-width:75px">Variation</label>
             <input type="range" min="0" max="100" step="5" value="${mockDraft.variation}" oninput="updateMockVariation(this.value)" style="flex:1">
             <span style="font-size:0.82rem;font-weight:700;min-width:42px;text-align:right">${mockDraft.variation}%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.6rem">
+            <label style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;min-width:75px">League</label>
+            <select onchange="updateMockLeagueType(this.value)" style="flex:1;padding:0.35rem;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:0.82rem">
+              <option value="default" ${(mockDraft.leagueType || 'default') === 'default' ? 'selected' : ''}>Default</option>
+              <option value="standard" ${mockDraft.leagueType === 'standard' ? 'selected' : ''}>Standard (1 QB)</option>
+              <option value="superflex" ${mockDraft.leagueType === 'superflex' ? 'selected' : ''}>Superflex (2 QB)</option>
+            </select>
           </div>
           <div style="display:flex;align-items:center;gap:0.6rem">
             <label style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;min-width:75px">Bias</label>
